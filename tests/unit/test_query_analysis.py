@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from sqlit.domains.query.app.query_analysis import (
     QueryAnalysisService,
     QueryDiagnostic,
@@ -95,3 +97,123 @@ def test_adapter_reads_the_current_tree_after_text_replacement() -> None:
     assert analysis.statement_at(Position(0, 0)) == SyntaxRange(
         Position(0, 0), Position(0, 33), "statement"
     )
+
+
+def test_cte_definition_body_and_select_list_ranges() -> None:
+    analysis = _service(
+        "WITH recent AS (SELECT id, total FROM orders WHERE total > 10) "
+        "SELECT recent.id FROM recent;"
+    )
+
+    assert analysis.cte_at(Position(0, 25)) == SyntaxRange(
+        Position(0, 5), Position(0, 62), "cte"
+    )
+    assert analysis.cte_at(Position(0, 25), body=True) == SyntaxRange(
+        Position(0, 16), Position(0, 61), "cte_body"
+    )
+    assert analysis.select_list_at(Position(0, 25)) == SyntaxRange(
+        Position(0, 23), Position(0, 32), "select_list"
+    )
+
+
+def test_subquery_and_where_ranges() -> None:
+    analysis = _service("SELECT * FROM users WHERE id IN (SELECT user_id FROM orders);")
+
+    assert analysis.subquery_at(Position(0, 43)) == SyntaxRange(
+        Position(0, 32), Position(0, 60), "subquery"
+    )
+    assert analysis.clause_at(Position(0, 25)) == SyntaxRange(
+        Position(0, 20), Position(0, 60), "where"
+    )
+
+
+@pytest.mark.parametrize(
+    ("column", "expected"),
+    [
+        (42, SyntaxRange(Position(0, 34), Position(0, 67), "group_by")),
+        (58, SyntaxRange(Position(0, 48), Position(0, 67), "having")),
+    ],
+)
+def test_group_by_and_synthesized_having_ranges(
+    column: int, expected: SyntaxRange
+) -> None:
+    analysis = _service(
+        "SELECT team, COUNT(*) FROM scores GROUP BY team HAVING COUNT(*) > 2;"
+    )
+
+    assert analysis.clause_at(Position(0, column)) == expected
+
+
+@pytest.mark.parametrize(
+    ("sql", "column", "expected"),
+    [
+        (
+            "SELECT a FROM t WHERE a > 1 ORDER BY a LIMIT 5;",
+            33,
+            SyntaxRange(Position(0, 28), Position(0, 38), "order_by"),
+        ),
+        (
+            "SELECT a FROM t WHERE a > 1 ORDER BY a LIMIT 5;",
+            44,
+            SyntaxRange(Position(0, 39), Position(0, 46), "limit"),
+        ),
+        (
+            "UPDATE t SET a = 1 WHERE id = 2 RETURNING id;",
+            41,
+            SyntaxRange(Position(0, 32), Position(0, 44), "returning"),
+        ),
+    ],
+)
+def test_order_limit_and_returning_clause_ranges(
+    sql: str, column: int, expected: SyntaxRange
+) -> None:
+    assert _service(sql).clause_at(Position(0, column)) == expected
+
+
+def test_join_condition_and_table_expression_ranges() -> None:
+    join_analysis = _service("SELECT * FROM a JOIN b USING (id);")
+    table_analysis = _service("SELECT * FROM schema.widgets AS w;")
+
+    assert join_analysis.join_condition_at(Position(0, 30)) == SyntaxRange(
+        Position(0, 29), Position(0, 33), "join_condition"
+    )
+    assert table_analysis.table_expression_at(Position(0, 23)) == SyntaxRange(
+        Position(0, 14), Position(0, 33), "table_expression"
+    )
+
+
+def test_delete_table_expression_handles_direct_object_reference() -> None:
+    analysis = _service("DELETE FROM widgets WHERE id = 1;")
+
+    assert analysis.table_expression_at(Position(0, 15)) == SyntaxRange(
+        Position(0, 12), Position(0, 19), "table_expression"
+    )
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "INSERT INTO events(name) SELECT name FROM pending RETURNING id;",
+        "SELECT u.id FROM public.users u LEFT JOIN orders o ON o.user_id = u.id;",
+        "SELECT IFNULL(u.name, 'n/a') FROM `users` u LIMIT 10;",
+        "SELECT TOP 10 u.id FROM dbo.users u ORDER BY u.id;",
+        "SELECT user_id, COUNT(*) FROM events GROUP BY user_id;",
+        "SELECT ROW_NUMBER() OVER (ORDER BY created_at) FROM events;",
+        "WITH active AS (SELECT id FROM users WHERE",
+    ],
+)
+def test_semantic_analysis_degrades_gracefully_across_sql_styles(sql: str) -> None:
+    analysis = _service(sql)
+    position = Position(0, min(10, len(sql)))
+
+    for selector in (
+        analysis.cte_at,
+        analysis.subquery_at,
+        analysis.select_list_at,
+        analysis.clause_at,
+        analysis.join_condition_at,
+        analysis.table_expression_at,
+    ):
+        result = selector(position)
+        assert result is None or isinstance(result, SyntaxRange)
+    assert isinstance(analysis.diagnostics(), tuple)

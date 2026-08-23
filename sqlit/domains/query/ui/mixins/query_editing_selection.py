@@ -238,7 +238,7 @@ class QueryEditingSelectionMixin:
             self._update_footer_bindings()
 
     def action_match_leader_key(self: QueryMixinHost) -> None:
-        """Wait for an inner/around text-object selector."""
+        """Wait for a text-object, syntax, or surround command."""
         self._clear_count_buffer()
         self._start_leader_pending("match")
 

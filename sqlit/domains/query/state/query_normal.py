@@ -23,7 +23,7 @@ class QueryNormalModeState(State):
         self.allows(
             "match_leader_key",
             label="Match",
-            help="Select text objects or edit surrounds",
+            help="Select text objects or syntax, or edit surrounds",
         )
         self.allows("collapse_selection", label="Collapse", help="Collapse selection to its head")
         self.allows("expand_syntax_selection", label="Expand Syntax", help="Expand to parent syntax node")

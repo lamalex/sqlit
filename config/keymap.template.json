@@ -290,9 +290,17 @@
       "match": {
         "inner": "i",
         "around": "a",
-        "surround_add": "s",
-        "surround_delete": "d",
-        "surround_replace": "r"
+            "surround_add": "s",
+            "surround_delete": "d",
+            "surround_replace": "r",
+            "syntax_statement": "S",
+            "syntax_cte": "e",
+            "syntax_cte_body": "E",
+            "syntax_subquery": "q",
+            "syntax_select_list": "l",
+            "syntax_clause": "c",
+            "syntax_join_condition": "j",
+            "syntax_table_expression": "t"
       },
       "window": {
         "left": "h",

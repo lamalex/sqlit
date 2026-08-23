@@ -8,6 +8,7 @@ from textual.widgets.text_area import SyntaxAwareDocument
 
 from sqlit.domains.query.app.query_analysis import (
     QueryDiagnostic,
+    SemanticTarget,
     SyntaxRange,
 )
 from sqlit.domains.query.editing import Position
@@ -66,6 +67,25 @@ class TextualQueryAnalysisBackend:
             kind=node.type,
         )
 
+    def _semantic_range(self, node: Node, target: SemanticTarget) -> SyntaxRange:
+        node_range = self._range(node)
+        return SyntaxRange(node_range.start, node_range.end, target.value)
+
+    def _range_between(self, start: Node, end: Node, kind: str) -> SyntaxRange:
+        return SyntaxRange(
+            self._point_to_position(start.start_point),
+            self._point_to_position(end.end_point),
+            kind,
+        )
+
+    @staticmethod
+    def _ancestor(node: Node | None, *types: str) -> Node | None:
+        while node is not None:
+            if node.type in types:
+                return node
+            node = node.parent
+        return None
+
     def _node_at(self, position: Position) -> Node | None:
         root = self._root_node()
         if root is None:
@@ -118,6 +138,77 @@ class TextualQueryAnalysisBackend:
             if sibling is not None:
                 return self._range(sibling)
             node = node.parent
+        return None
+
+    def semantic_range(
+        self, position: Position, target: SemanticTarget
+    ) -> SyntaxRange | None:
+        node = self._node_at(position)
+        if node is None:
+            return None
+
+        if target == SemanticTarget.CTE:
+            cte = self._ancestor(node, "cte")
+            return self._semantic_range(cte, target) if cte is not None else None
+
+        if target == SemanticTarget.CTE_BODY:
+            cte = self._ancestor(node, "cte")
+            if cte is None:
+                return None
+            body = next((child for child in cte.named_children if child.type == "statement"), None)
+            return self._semantic_range(body, target) if body is not None else None
+
+        if target == SemanticTarget.SUBQUERY:
+            subquery = self._ancestor(node, "subquery")
+            return self._semantic_range(subquery, target) if subquery is not None else None
+
+        if target == SemanticTarget.SELECT_LIST:
+            select_list = self._ancestor(node, "select_expression")
+            return self._semantic_range(select_list, target) if select_list is not None else None
+
+        if target == SemanticTarget.CLAUSE:
+            clause = self._ancestor(node, "where", "group_by", "order_by", "limit", "returning")
+            if clause is None:
+                return None
+            if clause.type == "group_by":
+                having = next(
+                    (child for child in clause.children if child.type == "keyword_having"),
+                    None,
+                )
+                offset = self._location_to_byte(position)
+                if having is not None and offset >= having.start_byte:
+                    return self._range_between(having, clause, "having")
+            clause_range = self._range(clause)
+            return SyntaxRange(clause_range.start, clause_range.end, clause.type)
+
+        if target == SemanticTarget.JOIN_CONDITION:
+            join = self._ancestor(node, "join")
+            if join is None:
+                return None
+            predicate = join.child_by_field_name("predicate")
+            if predicate is None:
+                using_index = next(
+                    (i for i, child in enumerate(join.children) if child.type == "keyword_using"),
+                    None,
+                )
+                if using_index is not None:
+                    predicate = next(
+                        (child for child in join.children[using_index + 1 :] if child.is_named),
+                        None,
+                    )
+            return self._semantic_range(predicate, target) if predicate is not None else None
+
+        if target == SemanticTarget.TABLE_EXPRESSION:
+            relation = self._ancestor(node, "relation")
+            if relation is not None:
+                return self._semantic_range(relation, target)
+            object_reference = self._ancestor(node, "object_reference")
+            if (
+                object_reference is not None
+                and object_reference.parent is not None
+                and object_reference.parent.type == "from"
+            ):
+                return self._semantic_range(object_reference, target)
         return None
 
     def diagnostics(self) -> tuple[QueryDiagnostic, ...]:

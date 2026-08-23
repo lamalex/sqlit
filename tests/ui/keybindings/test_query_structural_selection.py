@@ -115,3 +115,75 @@ async def test_expand_is_safe_for_incomplete_sql() -> None:
 
         start, end = app._ordered_selection(app.query_input.selection)
         assert start <= end
+
+
+@pytest.mark.parametrize(
+    ("sql", "column", "key", "expected"),
+    [
+        (
+            "WITH recent AS (SELECT id FROM orders) SELECT id FROM recent;",
+            25,
+            "e",
+            ((0, 5), (0, 38)),
+        ),
+        (
+            "WITH recent AS (SELECT id FROM orders) SELECT id FROM recent;",
+            25,
+            "E",
+            ((0, 16), (0, 37)),
+        ),
+        (
+            "SELECT * FROM users WHERE id IN (SELECT user_id FROM orders);",
+            43,
+            "q",
+            ((0, 32), (0, 60)),
+        ),
+        (
+            "SELECT first_name, last_name FROM users;",
+            10,
+            "l",
+            ((0, 7), (0, 28)),
+        ),
+        (
+            "SELECT * FROM users WHERE active = TRUE;",
+            31,
+            "c",
+            ((0, 20), (0, 39)),
+        ),
+        (
+            "SELECT * FROM users u JOIN teams t ON t.id = u.team_id;",
+            43,
+            "j",
+            ((0, 38), (0, 54)),
+        ),
+        (
+            "SELECT * FROM schema.widgets AS w;",
+            23,
+            "t",
+            ((0, 14), (0, 33)),
+        ),
+        (
+            "SELECT 1; SELECT 2;",
+            12,
+            "S",
+            ((0, 10), (0, 19)),
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_match_menu_selects_semantic_sql_ranges(
+    sql: str,
+    column: int,
+    key: str,
+    expected: tuple[tuple[int, int], tuple[int, int]],
+) -> None:
+    app = _make_app()
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = sql
+        app._set_normal_selection((0, column))
+
+        await pilot.press("m", key)
+
+        assert app._ordered_selection(app.query_input.selection) == expected

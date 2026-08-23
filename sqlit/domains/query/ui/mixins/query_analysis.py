@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlit.core.vim import VimMode
-from sqlit.domains.query.app.query_analysis import QueryAnalysisService, SyntaxRange
+from sqlit.domains.query.app.query_analysis import (
+    QueryAnalysisService,
+    SemanticTarget,
+    SyntaxRange,
+)
 from sqlit.domains.query.editing import Position, QuerySelectionSnapshot
 from sqlit.domains.query.ui.adapters import TextualQueryAnalysisBackend
 
@@ -22,9 +26,14 @@ class QueryAnalysisMixin:
     _applying_syntax_selection: bool = False
 
     def _get_query_analysis_service(self: QueryMixinHost) -> QueryAnalysisService:
+        provider = getattr(self, "current_provider", None)
+        metadata = getattr(provider, "metadata", None)
+        dialect = getattr(metadata, "db_type", None)
         if self._query_analysis_service is None:
             backend = TextualQueryAnalysisBackend(self.query_input)
-            self._query_analysis_service = QueryAnalysisService(backend)
+            self._query_analysis_service = QueryAnalysisService(backend, dialect=dialect)
+        else:
+            self._query_analysis_service.dialect = dialect
         return self._query_analysis_service
 
     def _reset_syntax_selection_history(self: QueryMixinHost) -> None:
@@ -117,3 +126,40 @@ class QueryAnalysisMixin:
         target = self._get_query_analysis_service().statement_at(Position(row, col))
         if target is not None:
             self._apply_syntax_selection(target, remember=current)
+
+    def _select_semantic_target(
+        self: QueryMixinHost, target_type: SemanticTarget
+    ) -> None:
+        self._clear_leader_pending()
+        current = self._syntax_selection_base()
+        row, col = self._query_logical_head()
+        target = self._get_query_analysis_service().semantic_range(
+            Position(row, col), target_type
+        )
+        if target is not None:
+            self._apply_syntax_selection(target, remember=current)
+
+    def action_match_syntax_statement(self: QueryMixinHost) -> None:
+        self._clear_leader_pending()
+        self.action_select_current_statement()
+
+    def action_match_syntax_cte(self: QueryMixinHost) -> None:
+        self._select_semantic_target(SemanticTarget.CTE)
+
+    def action_match_syntax_cte_body(self: QueryMixinHost) -> None:
+        self._select_semantic_target(SemanticTarget.CTE_BODY)
+
+    def action_match_syntax_subquery(self: QueryMixinHost) -> None:
+        self._select_semantic_target(SemanticTarget.SUBQUERY)
+
+    def action_match_syntax_select_list(self: QueryMixinHost) -> None:
+        self._select_semantic_target(SemanticTarget.SELECT_LIST)
+
+    def action_match_syntax_clause(self: QueryMixinHost) -> None:
+        self._select_semantic_target(SemanticTarget.CLAUSE)
+
+    def action_match_syntax_join_condition(self: QueryMixinHost) -> None:
+        self._select_semantic_target(SemanticTarget.JOIN_CONDITION)
+
+    def action_match_syntax_table_expression(self: QueryMixinHost) -> None:
+        self._select_semantic_target(SemanticTarget.TABLE_EXPRESSION)
