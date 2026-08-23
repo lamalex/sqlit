@@ -7,14 +7,31 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sqlit.core.vim import VimMode
+
+Location = tuple[int, int]
+
+
+@dataclass(frozen=True)
+class QuerySelectionSnapshot:
+    """Canonical query selection and modal state."""
+
+    start: Location
+    end: Location
+    logical_cursor: Location
+    normal_selection_primary: bool
+    vim_mode: VimMode
+    visual_anchor: Location | None = None
+    visual_cursor: Location | None = None
+    visual_line_anchor_row: int | None = None
+
 
 @dataclass(frozen=True)
 class UndoState:
-    """A snapshot of text state for undo/redo."""
+    """A complete query editor snapshot for undo/redo."""
 
     text: str
-    cursor_row: int
-    cursor_col: int
+    selection: QuerySelectionSnapshot
 
 
 class UndoHistory:
@@ -22,19 +39,19 @@ class UndoHistory:
 
     Usage:
         history = UndoHistory()
-        history.push(text, row, col)  # Save state before edit
+        history.push(before_state)  # Save state before edit
         # ... perform edit ...
-        history.push(new_text, new_row, new_col)  # Save state after edit
+        history.push(after_state)  # Save state after edit
 
         # Undo
         if history.can_undo():
             state = history.undo()
-            # Apply state.text, state.cursor_row, state.cursor_col
+            # Apply state.text and state.selection
 
         # Redo
         if history.can_redo():
             state = history.redo()
-            # Apply state.text, state.cursor_row, state.cursor_col
+            # Apply state.text and state.selection
     """
 
     def __init__(self, max_size: int = 100) -> None:
@@ -48,16 +65,14 @@ class UndoHistory:
         self._max_size = max_size
         self._current: UndoState | None = None
 
-    def push(self, text: str, cursor_row: int, cursor_col: int) -> None:
+    def push(self, state: UndoState) -> None:
         """Push a new state to the history.
 
         This clears the redo stack (no branching history).
         """
-        state = UndoState(text, cursor_row, cursor_col)
-
         # Don't push duplicate states
-        if self._current is not None and self._current.text == text:
-            # Just update cursor position
+        if self._current is not None and self._current.text == state.text:
+            # Selection changes alone update the current snapshot.
             self._current = state
             return
 

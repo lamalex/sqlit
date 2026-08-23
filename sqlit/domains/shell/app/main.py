@@ -504,6 +504,17 @@ class SSMSTUI(
             ctx,
             is_allowed=lambda name: self._state_machine.check_action(ctx, name),
         )
+        alternate_key = event.character
+        if alternate_key is None and event.key.startswith("shift+"):
+            shifted_key = event.key.removeprefix("shift+")
+            if len(shifted_key) == 1 and shifted_key.isalpha():
+                alternate_key = shifted_key.upper()
+        if action is None and alternate_key and alternate_key != event.key:
+            action = resolve_action(
+                alternate_key,
+                ctx,
+                is_allowed=lambda name: self._state_machine.check_action(ctx, name),
+            )
 
         if action is None and ctx.leader_pending and hasattr(self, "_cancel_leader_pending"):
             cast(UINavigationMixinHost, self)._cancel_leader_pending()

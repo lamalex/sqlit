@@ -44,6 +44,7 @@ class QueryEditingClipboardMixin:
         self.query_input.selection = Selection(
             (start_row, start_col), (end_row, end_col)
         )
+        self._normal_selection_primary = False
 
     def action_copy_selection(self: QueryMixinHost) -> None:
         """Copy selected text to clipboard (CTRL+C)."""

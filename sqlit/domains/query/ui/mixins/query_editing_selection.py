@@ -61,6 +61,7 @@ class QueryEditingSelectionMixin:
         self.query_input.selection = Selection(boundary, cursor)
         self._normal_cursor = cursor
         self._normal_textual_cursor = cursor
+        self._normal_selection_primary = True
 
     def _set_normal_motion_selection(
         self: QueryMixinHost,
@@ -71,7 +72,7 @@ class QueryEditingSelectionMixin:
         """Apply Helix-style NORMAL selection semantics for a motion."""
         from textual.widgets.text_area import Selection
 
-        if origin == destination:
+        if origin == destination and motion_key not in {"e", "E"}:
             self._set_normal_selection(destination)
             return
 
@@ -80,6 +81,7 @@ class QueryEditingSelectionMixin:
             self.query_input.selection = Selection(origin, boundary)
             self._normal_cursor = destination
             self._normal_textual_cursor = boundary
+            self._normal_selection_primary = False
             return
 
         if motion_key not in {"w", "W", "b", "B"}:
@@ -89,12 +91,35 @@ class QueryEditingSelectionMixin:
         self.query_input.selection = Selection(origin, destination)
         self._normal_cursor = destination
         self._normal_textual_cursor = destination
+        self._normal_selection_primary = False
 
     def action_collapse_selection(self: QueryMixinHost) -> None:
         """Collapse the current range to its logical head."""
+        from sqlit.core.vim import VimMode
+
         self._clear_count_buffer()
-        cursor = self._query_logical_head()
+        selection = self.query_input.selection
+        if self.vim_mode == VimMode.VISUAL:
+            cursor = self._visual_cursor or selection.end
+        elif self.vim_mode == VimMode.VISUAL_LINE:
+            cursor = (
+                selection.end
+                if selection.start > selection.end
+                else self._position_before(selection.end)
+            )
+        else:
+            cursor = self._query_logical_head()
+
+        was_visual = self.vim_mode in {VimMode.VISUAL, VimMode.VISUAL_LINE}
+        self._visual_anchor = None
+        self._visual_cursor = None
+        self._visual_line_anchor_row = None
+        if was_visual:
+            self.vim_mode = VimMode.NORMAL
         self._set_normal_selection(cursor)
+        if was_visual:
+            self._update_vim_mode_visuals()
+            self._update_footer_bindings()
 
     def action_match_leader_key(self: QueryMixinHost) -> None:
         """Wait for an inner/around text-object selector."""
@@ -147,6 +172,7 @@ class QueryEditingSelectionMixin:
         )
 
         selection = self.query_input.selection
+        selection_was_primary = self._normal_selection_primary
         backward = selection.start > selection.end
         start, end = self._ordered_selection(selection)
         text = self.query_input.text
@@ -194,6 +220,7 @@ class QueryEditingSelectionMixin:
             textual_cursor = new_end
         self._normal_cursor = new_head
         self._normal_textual_cursor = textual_cursor
+        self._normal_selection_primary = False if was_visual else selection_was_primary
         if was_visual:
             self._visual_anchor = None
             self._visual_cursor = None
@@ -221,6 +248,7 @@ class QueryEditingSelectionMixin:
             from sqlit.domains.query.editing import get_selection_text, operator_delete, paste_text
 
             selection = self.query_input.selection
+            selection_was_primary = self._normal_selection_primary
             backward = selection.start > selection.end
             start, end = self._ordered_selection(selection)
             selected = get_selection_text(self.query_input.text, start[0], start[1], end[0], end[1])
@@ -240,6 +268,7 @@ class QueryEditingSelectionMixin:
                 self.query_input.selection = Selection(start, selection_end)
                 self._normal_cursor = self._position_before(selection_end)
                 self._normal_textual_cursor = selection_end
+            self._normal_selection_primary = selection_was_primary
 
         self.push_screen(CharPendingMenuScreen("r"), handle_result)
 
@@ -269,6 +298,7 @@ class QueryEditingSelectionMixin:
                 self.query_input.selection = Selection(cursor, cursor)
                 self._normal_cursor = cursor
                 self._normal_textual_cursor = cursor
+                self._normal_selection_primary = False
                 return
 
             ordered = range_obj.ordered()
@@ -277,6 +307,7 @@ class QueryEditingSelectionMixin:
             self.query_input.selection = Selection(start, end)
             self._normal_cursor = (ordered.end.row, ordered.end.col)
             self._normal_textual_cursor = end
+            self._normal_selection_primary = False
 
         mode = "around" if around else "inner"
         self.push_screen(TextObjectMenuScreen(mode, operator="select"), handle_result)
@@ -347,6 +378,7 @@ class QueryEditingSelectionMixin:
         self.query_input.selection = Selection(
             (start_row, start_col), (end_row, end_col)
         )
+        self._normal_selection_primary = True
 
         # Clear selection after a short delay
         def clear_flash() -> None:
@@ -372,6 +404,7 @@ class QueryEditingSelectionMixin:
 
         if text:
             self._copy_text(text)
+            self._normal_selection_primary = True
             # Flash: keep selection visible briefly, then clear
             cursor = self.query_input.cursor_location
 
@@ -380,7 +413,7 @@ class QueryEditingSelectionMixin:
 
             self.set_timer(0.15, clear_selection)
 
-    def _change_selection(self: QueryMixinHost) -> None:
+    def _change_selection(self: QueryMixinHost, *, push_undo: bool = True) -> None:
         """Change (delete and enter insert mode) the current selection."""
         from textual.widgets.text_area import Selection
 
@@ -389,8 +422,8 @@ class QueryEditingSelectionMixin:
         selection = self.query_input.selection
         start, end = self._ordered_selection(selection)
 
-        # Push undo state before change
-        self._push_undo_state()
+        if push_undo:
+            self._push_undo_state()
 
         text = self.query_input.text
 
@@ -451,6 +484,7 @@ class QueryEditingSelectionMixin:
         # Update cursor and selection
         self.query_input.cursor_location = (new_row, new_col)
         self.query_input.selection = Selection(anchor, (new_row, new_col))
+        self._normal_selection_primary = False
 
     def action_select_left(self: QueryMixinHost) -> None:
         """Extend selection one character left (Shift+Left)."""

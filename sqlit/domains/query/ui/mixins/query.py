@@ -55,3 +55,5 @@ class QueryMixin(
     _results_render_worker: Worker[Any] | None = None
     _results_render_token: int = 0
     _query_target_database: str | None = None
+    _normal_selection_primary: bool = True
+    _query_execution_scope: str = "query"

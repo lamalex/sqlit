@@ -23,6 +23,7 @@ class QueryEditingVisualLineMixin:
         lines = self.query_input.text.split("\n")
         end_col = len(lines[row]) if row < len(lines) else 0
         self.query_input.selection = Selection((row, 0), (row, end_col))
+        self._normal_selection_primary = False
 
         self._update_vim_mode_visuals()
         self._update_footer_bindings()

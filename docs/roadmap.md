@@ -39,7 +39,7 @@ The current editor foundation includes:
 
 Before adding syntax behavior, finish the remaining selection invariants.
 
-### Substantive Selection Execution
+### Substantive Selection Execution (completed)
 
 NORMAL mode represents its primary cursor as a one-character selection, while motions, search, and surround commands can retain broader selections. Execution must distinguish those cases:
 
@@ -48,7 +48,9 @@ NORMAL mode represents its primary cursor as a one-character selection, while mo
 - The rule must be based on explicit selection state, not selection length alone.
 - Help text and execution notifications must make the chosen scope clear.
 
-### Selection-Aware Undo
+Execution now tracks explicit primary versus substantive selection provenance. NORMAL motion, search, text-object, native, and visual-to-NORMAL selections execute their selected SQL; collapsing back to the primary cursor restores full-buffer execution. The status bar identifies selection and statement execution scopes.
+
+### Selection-Aware Undo (completed)
 
 Undo and redo snapshots should restore:
 
@@ -57,6 +59,8 @@ Undo and redo snapshots should restore:
 - Selection direction
 - Logical cursor head
 - Editing mode where appropriate
+
+Undo and redo now use immutable query editor snapshots containing directional selection endpoints, logical cursor, primary/substantive provenance, Vim mode, and visual anchors. Restoration preserves NORMAL, character-selection, line-selection, and INSERT behavior; redo restores the exact post-edit snapshot and new edits invalidate the previous redo branch immediately.
 
 ### Unified Selection State
 

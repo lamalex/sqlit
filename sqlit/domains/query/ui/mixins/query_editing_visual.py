@@ -33,6 +33,7 @@ class QueryEditingVisualMixin:
 
         self._visual_anchor = anchor
         self._visual_cursor = cursor
+        self._normal_selection_primary = False
         self.vim_mode = VimMode.VISUAL
         self._update_vim_mode_visuals()
         self._update_footer_bindings()
@@ -156,12 +157,10 @@ class QueryEditingVisualMixin:
 
     def action_visual_change(self: QueryMixinHost) -> None:
         """Change (delete + insert) the charwise selection."""
+        self._push_undo_state()
+        self._change_selection(push_undo=False)
         self._visual_anchor = None
         self._visual_cursor = None
-        self._push_undo_state()
-        # _change_selection calls _enter_insert_mode which handles
-        # vim_mode, visuals, and footer updates.
-        self._change_selection()
 
     def action_visual_execute(self: QueryMixinHost) -> None:
         """Execute the visually selected text."""

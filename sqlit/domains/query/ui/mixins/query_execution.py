@@ -116,6 +116,8 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
             self.notify("No statement found at cursor", severity="warning")
             return
 
+        self._query_execution_scope = "statement"
+
         def _proceed() -> None:
             if hasattr(self, "_query_worker") and self._query_worker is not None:
                 self._query_worker.cancel()
@@ -132,10 +134,8 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
 
     def _get_query_to_execute(self: QueryMixinHost) -> str:
         """Return selected text if present, otherwise the full query."""
-        from sqlit.core.vim import VimMode
-
         selection = self.query_input.selection
-        if self.vim_mode != VimMode.NORMAL and selection.start != selection.end:
+        if self._query_selection_is_substantive():
             from sqlit.domains.query.editing import get_selection_text
 
             start = selection.start
@@ -150,10 +150,20 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
                 end[0],
                 end[1],
             )
-            if selected_sql and selected_sql.strip():
-                return selected_sql.strip()
+            self._query_execution_scope = "selection"
+            return selected_sql.strip()
 
+        self._query_execution_scope = "query"
         return self.query_input.text.strip()
+
+    def _query_selection_is_substantive(self: QueryMixinHost) -> bool:
+        """Return whether execution should use the active query selection."""
+        from sqlit.core.vim import VimMode
+
+        selection = self.query_input.selection
+        if selection.start == selection.end:
+            return False
+        return self.vim_mode != VimMode.NORMAL or not self._normal_selection_primary
 
     def _execute_query_common(self: QueryMixinHost, keep_insert_mode: bool) -> None:
         """Common query execution logic."""

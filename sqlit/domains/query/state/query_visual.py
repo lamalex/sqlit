@@ -32,6 +32,7 @@ class QueryVisualModeState(State):
         self.allows("visual_change", label="Change", help="Change selection")
         self.allows("visual_execute", label="Execute", help="Execute selection")
         self.allows("match_leader_key", label="Match", help="Edit selection surrounds")
+        self.allows("collapse_selection", label="Collapse", help="Collapse selection to its head")
         # All cursor motions
         self.allows("cursor_left", help="Move cursor left")
         self.allows("cursor_right", help="Move cursor right")

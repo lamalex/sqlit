@@ -410,12 +410,11 @@ class QueryTextArea(TextArea):
         return key in ("backspace", "delete", "enter", "tab")
 
     def _push_undo_if_changed(self) -> None:
-        """Push current state to undo history if text has changed."""
+        """Checkpoint current state before a potential native text edit."""
         current_text = self.text
-        if current_text != self._last_text:
-            if hasattr(self.app, "_push_undo_state"):
-                self.app._push_undo_state()
-            self._last_text = current_text
+        if hasattr(self.app, "_push_undo_state"):
+            self.app._push_undo_state()
+        self._last_text = current_text
 
     @property
     def relative_line_numbers(self) -> bool:
@@ -433,6 +432,13 @@ class QueryTextArea(TextArea):
     def _watch_selection(self, previous_selection: Selection, selection: Selection) -> None:
         """Clear line cache when cursor row changes (for relative line numbers)."""
         super()._watch_selection(previous_selection, selection)
+        try:
+            from sqlit.core.vim import VimMode
+
+            if self.app.vim_mode == VimMode.NORMAL and previous_selection != selection:
+                self.app._normal_selection_primary = False
+        except Exception:
+            pass
         if self._relative_line_numbers and self.show_line_numbers:
             # Get current cursor row
             cursor_row = self.selection.end[0]

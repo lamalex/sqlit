@@ -280,6 +280,11 @@ class UIStatusMixin:
             from sqlit.core.state_base import resolve_display_key
 
             cancel_key = resolve_display_key("cancel_operation") or "<esc>"
+            scope = getattr(self, "_query_execution_scope", "query")
+            executing = {
+                "selection": "Executing selection",
+                "statement": "Executing statement",
+            }.get(scope, "Executing")
             query_spinner = getattr(self, "_query_spinner", None)
             if query_spinner and query_spinner.running:
                 import time
@@ -291,16 +296,16 @@ class UIStatusMixin:
                     elapsed_ms = (time.perf_counter() - start_time) * 1000
                     elapsed_str = format_duration_ms(elapsed_ms, always_seconds=True)
                     right_content = (
-                        f"[bold yellow]{query_spinner.frame} Executing [{elapsed_str}][/] "
+                        f"[bold yellow]{query_spinner.frame} {executing} [{elapsed_str}][/] "
                         f"[dim]{cancel_key} to cancel[/]"
                     )
-                    right_content_plain = f"  Executing [{elapsed_str}] {cancel_key} to cancel"
+                    right_content_plain = f"  {executing} [{elapsed_str}] {cancel_key} to cancel"
                 else:
-                    right_content = f"[bold yellow]{query_spinner.frame} Executing[/] [dim]{cancel_key} to cancel[/]"
-                    right_content_plain = f"  Executing {cancel_key} to cancel"
+                    right_content = f"[bold yellow]{query_spinner.frame} {executing}[/] [dim]{cancel_key} to cancel[/]"
+                    right_content_plain = f"  {executing} {cancel_key} to cancel"
             else:
-                right_content = "[bold yellow]Executing...[/]"
-                right_content_plain = "Executing..."
+                right_content = f"[bold yellow]{executing}...[/]"
+                right_content_plain = f"{executing}..."
 
             gap = total_width - len(left_plain) - len(right_content_plain)
             if gap > 2:

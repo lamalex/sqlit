@@ -38,6 +38,14 @@ class QueryStateProtocol(Protocol):
     _query_document: Any | None
     _last_query_search: str
     _last_query_search_direction: int
+    _normal_selection_primary: bool
+    _query_execution_scope: str
+    _normal_cursor: tuple[int, int] | None
+    _normal_textual_cursor: tuple[int, int] | None
+    _visual_anchor: tuple[int, int] | None
+    _visual_cursor: tuple[int, int] | None
+    _visual_line_anchor_row: int | None
+    _restoring_undo_state: bool
 
 
 class QueryActionsProtocol(Protocol):
@@ -53,6 +61,9 @@ class QueryActionsProtocol(Protocol):
         ...
 
     def _query_logical_head(self) -> tuple[int, int]:
+        ...
+
+    def _query_selection_is_substantive(self) -> bool:
         ...
 
     def action_execute_query(self) -> None:
@@ -192,6 +203,12 @@ class QueryActionsProtocol(Protocol):
     def _get_undo_history(self) -> Any:
         ...
 
+    def _capture_undo_state(self) -> Any:
+        ...
+
+    def _restore_undo_state(self, state: Any) -> None:
+        ...
+
     def _push_undo_state(self) -> None:
         ...
 
@@ -245,7 +262,7 @@ class QueryActionsProtocol(Protocol):
     def _yank_with_text_object(self, obj_char: str, around: bool) -> None:
         ...
 
-    def _change_selection(self) -> None:
+    def _change_selection(self, *, push_undo: bool = True) -> None:
         ...
 
     def _enter_insert_mode(self) -> None:

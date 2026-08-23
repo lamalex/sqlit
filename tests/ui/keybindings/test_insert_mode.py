@@ -121,3 +121,31 @@ class TestInsertModeKeybindings:
 
             assert app.vim_mode == VimMode.INSERT
             assert app.query_input.cursor_location == (0, 6)
+
+    @pytest.mark.asyncio
+    async def test_shift_a_appends_at_end_of_logical_head_line(self):
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "select one\nselect two"
+            app._set_normal_selection((0, 0))
+            await pilot.press("e", "shift+a")
+            await pilot.pause()
+
+            assert app.vim_mode == VimMode.INSERT
+            assert app.query_input.cursor_location == (0, len("select one"))
+
+    @pytest.mark.asyncio
+    async def test_shift_i_inserts_at_start_of_logical_head_line(self):
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "select one\nselect two"
+            app._set_normal_selection((1, 6))
+            await pilot.press("shift+i")
+            await pilot.pause()
+
+            assert app.vim_mode == VimMode.INSERT
+            assert app.query_input.cursor_location == (1, 0)

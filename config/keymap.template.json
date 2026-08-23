@@ -130,6 +130,10 @@
         "visual_change": "c",
         "visual_execute": "enter",
         "match_leader_key": "m",
+        "collapse_selection": [
+          "semicolon",
+          ";"
+        ],
         "cursor_left": [
           "h",
           "left"
@@ -171,6 +175,10 @@
         "visual_line_delete": "d",
         "visual_line_change": "c",
         "match_leader_key": "m",
+        "collapse_selection": [
+          "semicolon",
+          ";"
+        ],
         "cursor_down": [
           "j",
           "x",

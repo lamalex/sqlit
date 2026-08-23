@@ -134,6 +134,7 @@ class TestQuerySurround:
             assert app._ordered_selection(app.query_input.selection) == ((0, 1), (0, 12))
             assert app._query_logical_head() == (0, 11)
             assert app.vim_mode == VimMode.NORMAL
+            assert app._get_query_to_execute() == "select name"
 
     @pytest.mark.asyncio
     async def test_visual_ms_surrounds_character_selection(self) -> None:

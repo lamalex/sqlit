@@ -85,3 +85,4 @@ class QueryEditingSearchMixin:
             self.query_input.selection = Selection(end, start)
             self._normal_cursor = start
             self._normal_textual_cursor = start
+        self._normal_selection_primary = False

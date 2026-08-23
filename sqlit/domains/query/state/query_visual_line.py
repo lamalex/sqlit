@@ -45,6 +45,7 @@ class QueryVisualLineModeState(State):
             help="Change selected lines",
         )
         self.allows("match_leader_key", label="Match", help="Edit selection surrounds")
+        self.allows("collapse_selection", label="Collapse", help="Collapse selection to its head")
         # Execute selected lines
         self.allows(
             "visual_line_execute",

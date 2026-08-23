@@ -195,8 +195,11 @@ class QueryEditingCursorMixin:
 
     def action_prepend_insert_mode(self: QueryMixinHost) -> None:
         """Enter insert mode at start of line (I)."""
-        row, _ = self.query_input.cursor_location
-        self.query_input.cursor_location = (row, 0)
+        from textual.widgets.text_area import Selection
+
+        row, _ = self._query_logical_head()
+        target = (row, 0)
+        self.query_input.selection = Selection(target, target)
         self.action_enter_insert_mode()
 
     def action_append_insert_mode(self: QueryMixinHost) -> None:
@@ -209,10 +212,13 @@ class QueryEditingCursorMixin:
 
     def action_append_line_end(self: QueryMixinHost) -> None:
         """Enter insert mode at end of line (A)."""
+        from textual.widgets.text_area import Selection
+
         lines = self.query_input.text.split("\n")
-        row, _ = self.query_input.cursor_location
+        row, _ = self._query_logical_head()
         line_len = len(lines[row]) if row < len(lines) else 0
-        self.query_input.cursor_location = (row, line_len)
+        target = (row, line_len)
+        self.query_input.selection = Selection(target, target)
         self.action_enter_insert_mode()
 
     def _show_motion_char_pending_menu(self: QueryMixinHost, motion: str) -> None:

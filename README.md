@@ -194,6 +194,7 @@ sqlit connections delete "MyConnection"
 | Key | Action |
 |-----|--------|
 | Query: `i` / `a` | Insert before / after selection |
+| Query: `I` / `A` | Insert at start / append at end of line |
 | Query: `Enter` | Execute query or selected text |
 | Query: `v` / `x` | Character / line selection mode |
 | Query: `y` / `d` / `c` | Copy / delete / change selection |

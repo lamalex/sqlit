@@ -197,6 +197,47 @@ class TestEnterExitVisualMode:
             assert app._normal_cursor == expected
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("start", "motions", "expected"),
+        [((0, 0), ("l", "l"), (0, 2)), ((0, 4), ("h", "h"), (0, 2))],
+    )
+    async def test_semicolon_collapses_character_selection_to_head(
+        self,
+        start: tuple[int, int],
+        motions: tuple[str, ...],
+        expected: tuple[int, int],
+    ) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "hello"
+            app._set_normal_selection(start)
+
+            await pilot.press("v", *motions, "semicolon")
+            await pilot.pause()
+
+            assert app.vim_mode == VimMode.NORMAL
+            assert app._normal_cursor == expected
+            assert app._normal_selection_primary is True
+
+    @pytest.mark.asyncio
+    async def test_semicolon_collapses_line_selection_to_head(self) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "one\ntwo\nthree"
+            app._set_normal_selection((1, 1))
+
+            await pilot.press("x", "x", "semicolon")
+            await pilot.pause()
+
+            assert app.vim_mode == VimMode.NORMAL
+            assert app._normal_cursor == (2, len("three") - 1)
+            assert app._normal_selection_primary is True
+
+    @pytest.mark.asyncio
     async def test_V_exits_visual_line_mode(self) -> None:
         """Pressing V again in visual line mode should exit."""
         app = _make_app()
@@ -608,6 +649,7 @@ class TestSelectionExecution:
             app._set_normal_selection((0, 0))
 
             assert app._get_query_to_execute() == "SELECT 1"
+            assert app._query_execution_scope == "query"
 
     @pytest.mark.asyncio
     async def test_select_mode_executes_selected_query(self) -> None:
@@ -622,3 +664,79 @@ class TestSelectionExecution:
             app.query_input.selection = Selection((0, 0), (0, 8))
 
             assert app._get_query_to_execute() == "SELECT 1"
+            assert app._query_execution_scope == "selection"
+
+    @pytest.mark.asyncio
+    async def test_normal_motion_selection_executes_selected_sql(self) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "SELECT 1; SELECT 2"
+            app._set_normal_selection((0, 0))
+
+            await pilot.press("e")
+            await pilot.pause()
+
+            assert app._get_query_to_execute() == "SELECT"
+            assert app._query_execution_scope == "selection"
+
+    @pytest.mark.asyncio
+    async def test_one_character_search_selection_is_substantive(self) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "SELECT 1; SELECT 2"
+            app._set_normal_selection((0, 0))
+
+            await pilot.press("slash", "1", "enter")
+            await pilot.pause()
+
+            assert app._get_query_to_execute() == "1"
+            assert app._query_execution_scope == "selection"
+
+    @pytest.mark.asyncio
+    async def test_one_character_word_end_selection_is_substantive(self) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "x"
+            app._set_normal_selection((0, 0))
+
+            await pilot.press("e")
+            await pilot.pause()
+
+            assert app._get_query_to_execute() == "x"
+            assert app._query_execution_scope == "selection"
+
+    @pytest.mark.asyncio
+    async def test_collapsed_selection_executes_full_query(self) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "SELECT 1; SELECT 2"
+            app._set_normal_selection((0, 0))
+
+            await pilot.press("e", "semicolon")
+            await pilot.pause()
+
+            assert app._get_query_to_execute() == "SELECT 1; SELECT 2"
+            assert app._query_execution_scope == "query"
+
+    @pytest.mark.asyncio
+    async def test_native_normal_selection_is_substantive(self) -> None:
+        from textual.widgets.text_area import Selection
+
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "SELECT 1; SELECT 2"
+            app._set_normal_selection((0, 0))
+            app.query_input.selection = Selection((0, 10), (0, 18))
+            await pilot.pause()
+
+            assert app._get_query_to_execute() == "SELECT 2"
