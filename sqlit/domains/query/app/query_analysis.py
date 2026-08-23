@@ -61,6 +61,8 @@ class QueryAnalysisBackend(Protocol):
         self, position: Position, target: SemanticTarget
     ) -> SyntaxRange | None: ...
 
+    def semantic_ranges(self, position: Position) -> tuple[SyntaxRange, ...]: ...
+
     def diagnostics(self) -> tuple[QueryDiagnostic, ...]: ...
 
 
@@ -96,6 +98,9 @@ class QueryAnalysisService:
         self, position: Position, target: SemanticTarget
     ) -> SyntaxRange | None:
         return self._backend.semantic_range(position, target)
+
+    def semantic_ranges(self, position: Position) -> tuple[SyntaxRange, ...]:
+        return self._backend.semantic_ranges(position)
 
     def cte_at(self, position: Position, *, body: bool = False) -> SyntaxRange | None:
         target = SemanticTarget.CTE_BODY if body else SemanticTarget.CTE

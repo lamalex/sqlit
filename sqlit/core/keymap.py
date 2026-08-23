@@ -355,6 +355,7 @@ class DefaultKeymapProvider(KeymapProvider):
             ActionKeyDef("alt+i", "shrink_syntax_selection", "query_normal"),
             ActionKeyDef("alt+n", "select_next_syntax_sibling", "query_normal"),
             ActionKeyDef("alt+p", "select_previous_syntax_sibling", "query_normal"),
+            ActionKeyDef("alt+s", "show_syntax_object_picker", "query_normal"),
             ActionKeyDef("g", "g_leader_key", "query_normal"),
             ActionKeyDef("backspace", "show_history", "query_normal"),
             ActionKeyDef("ctrl+n", "new_query", "query_normal"),

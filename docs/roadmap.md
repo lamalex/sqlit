@@ -129,6 +129,8 @@ Proposed defaults should follow Helix where practical:
 
 The initial structural slice now supports parent expansion, history-based shrinking, previous and next sibling selection, and statement selection through `QueryAnalysisService`. Structural selections use the same canonical selection snapshot as other editor commands, and ordinary motions invalidate structural history rather than restoring stale ranges.
 
+`Alt+s` opens a filterable SQL object picker for the current statement. It lists only available statements, CTEs, subqueries, SELECT lists, clauses, JOIN conditions, and table expressions with source snippets; selecting an entry applies the same structural selection history used by expand and shrink.
+
 Semantic match commands now select statements (`mS`), CTE definitions and bodies (`me`/`mE`), subqueries (`mq`), SELECT lists (`ml`), the clause at the logical head (`mc`), JOIN conditions (`mj`), and table expressions (`mt`). Cross-style fixtures cover common SQLite, PostgreSQL, MySQL, SQL Server, BigQuery, and Snowflake shapes plus incomplete SQL; unsupported dialect grammar degrades to diagnostics or no semantic match without blocking editing.
 
 The spike succeeds when these commands remain responsive and useful across representative SQLite, PostgreSQL, MySQL, SQL Server, BigQuery, and Snowflake queries, including incomplete SQL.

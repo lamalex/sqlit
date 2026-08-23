@@ -31,6 +31,11 @@ class QueryNormalModeState(State):
         self.allows("select_next_syntax_sibling", help="Select next syntax sibling")
         self.allows("select_previous_syntax_sibling", help="Select previous syntax sibling")
         self.allows("select_current_statement", help="Select statement at cursor")
+        self.allows(
+            "show_syntax_object_picker",
+            label="SQL Objects",
+            help="Choose a semantic object from the current statement",
+        )
         self.allows("replace_selection", label="Replace", help="Replace selection with a character")
         self.allows("g_leader_key", label="Go", help="Go motions (menu)")
         self.allows("new_query", label="New", help="New query (clear all)")

@@ -288,6 +288,149 @@ class TextualQueryAnalysisBackend:
                 return self._semantic_range(object_reference, target)
         return None
 
+    def _outer_statement(self, root: Node, node: Node, position: Position) -> Node | None:
+        statement = None
+        current = node
+        while current is not None:
+            if current.type == "statement":
+                statement = current
+            current = current.parent
+        if statement is None:
+            for candidate in reversed(root.named_children):
+                if candidate.type != "statement":
+                    continue
+                candidate_range = self._range(candidate)
+                if candidate_range.start <= position <= candidate_range.end:
+                    statement = candidate
+                    break
+        return statement
+
+    def _semantic_ranges_for_node(self, candidate: Node) -> list[SyntaxRange]:
+        values: list[SyntaxRange] = []
+        if candidate.type == "cte":
+            values.append(self._semantic_range(candidate, SemanticTarget.CTE))
+            body = next(
+                (child for child in candidate.named_children if child.type == "statement"),
+                None,
+            )
+            if body is not None:
+                values.append(self._semantic_range(body, SemanticTarget.CTE_BODY))
+        elif candidate.type == "subquery":
+            values.append(self._semantic_range(candidate, SemanticTarget.SUBQUERY))
+        elif candidate.type == "select_expression":
+            values.append(self._semantic_range(candidate, SemanticTarget.SELECT_LIST))
+        elif candidate.type in {"where", "order_by", "limit", "returning"}:
+            value = self._range(candidate)
+            values.append(SyntaxRange(value.start, value.end, candidate.type))
+        elif candidate.type == "group_by":
+            value = self._range(candidate)
+            values.append(SyntaxRange(value.start, value.end, candidate.type))
+            having = next(
+                (child for child in candidate.children if child.type == "keyword_having"),
+                None,
+            )
+            if having is not None:
+                values.append(self._range_between(having, candidate, "having"))
+        elif candidate.type == "join":
+            value = self.semantic_range(
+                self._point_to_position(candidate.start_point),
+                SemanticTarget.JOIN_CONDITION,
+            )
+            if value is not None:
+                values.append(value)
+        elif candidate.type == "relation":
+            value = self._semantic_range(candidate, SemanticTarget.TABLE_EXPRESSION)
+            text = self._text_area.text
+            start = self._position_to_offset(value.start)
+            end = self._position_to_offset(value.end)
+            if text[start:end].casefold() != "on":
+                values.append(value)
+        elif (
+            candidate.type == "object_reference"
+            and candidate.parent is not None
+            and candidate.parent.type == "from"
+        ):
+            values.append(self._semantic_range(candidate, SemanticTarget.TABLE_EXPRESSION))
+        return values
+
+    def semantic_ranges(self, position: Position) -> tuple[SyntaxRange, ...]:
+        root = self._root_node()
+        node = self._node_at(position)
+        if root is None or node is None:
+            return ()
+
+        statement = self._outer_statement(root, node, position)
+        if statement is None:
+            return ()
+
+        scope = self._range(statement)
+        ranges: list[SyntaxRange] = [scope]
+        seen = {(scope.start, scope.end, scope.kind)}
+
+        def add(value: SyntaxRange | None) -> None:
+            if value is None or value.start < scope.start or scope.end < value.end:
+                return
+            key = (value.start, value.end, value.kind)
+            if key not in seen:
+                seen.add(key)
+                ranges.append(value)
+
+        pending = [statement]
+        trailing = statement.next_named_sibling
+        while trailing is not None and trailing.type == "ERROR":
+            pending.append(trailing)
+            trailing = trailing.next_named_sibling
+
+        while pending:
+            candidate = pending.pop()
+            candidate_range = self._range(candidate)
+            if candidate_range.end < scope.start or scope.end < candidate_range.start:
+                continue
+
+            for value in self._semantic_ranges_for_node(candidate):
+                add(value)
+
+            if candidate.type.startswith("keyword_"):
+                error = self._ancestor(candidate, "ERROR")
+                if error is not None:
+                    add(
+                        self._fallback_clause(
+                            self._point_to_position(candidate.start_point), error
+                        )
+                    )
+
+            if candidate.type == "ERROR":
+                error_position = self._point_to_position(candidate.start_point)
+                add(self._fallback_join_condition(error_position))
+                add(self._fallback_clause(error_position, candidate))
+            pending.extend(reversed(candidate.named_children))
+
+        priority = {
+            "statement": 0,
+            "cte": 1,
+            "cte_body": 2,
+            "subquery": 3,
+            "select_list": 4,
+            "where": 5,
+            "group_by": 5,
+            "having": 5,
+            "order_by": 5,
+            "limit": 5,
+            "returning": 5,
+            "join_condition": 6,
+            "table_expression": 7,
+        }
+        ranges.sort(
+            key=lambda value: (
+                priority.get(value.kind, 99),
+                value.start.row,
+                value.start.col,
+                value.end.row,
+                value.end.col,
+            )
+        )
+        return tuple(ranges)
+
     def _fallback_clause(
         self, position: Position, error: Node
     ) -> SyntaxRange | None:

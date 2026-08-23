@@ -12,6 +12,7 @@ from .query_library import QueryLibraryScreen
 from .saved_query_name import SavedQueryNameScreen
 from .query_search import QuerySearchScreen
 from .surround_menu import SurroundMenuScreen
+from .syntax_object_picker import SyntaxObjectPickerScreen, syntax_kind_label
 from .text_object_menu import TextObjectMenuScreen
 
 __all__ = [
@@ -24,6 +25,8 @@ __all__ = [
     "SavedQueryNameScreen",
     "QuerySearchScreen",
     "SurroundMenuScreen",
+    "SyntaxObjectPickerScreen",
     "TextObjectMenuScreen",
     "UnsavedQueryChangesScreen",
+    "syntax_kind_label",
 ]

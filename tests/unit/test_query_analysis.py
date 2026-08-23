@@ -260,3 +260,24 @@ def test_recovery_does_not_classify_keywords_inside_valid_strings() -> None:
 
     assert analysis.join_condition_at(Position(0, 20)) is None
     assert analysis.clause_at(Position(0, 28)) is None
+
+
+def test_semantic_ranges_list_outer_statement_objects_from_nested_cte() -> None:
+    analysis = _service(INCOMPLETE_JOIN_SQL)
+
+    ranges = analysis.semantic_ranges(Position(1, 8))
+    kinds = [value.kind for value in ranges]
+
+    assert kinds.count("statement") == 1
+    assert kinds.count("cte") == 1
+    assert kinds.count("cte_body") == 1
+    assert kinds.count("subquery") == 1
+    assert kinds.count("select_list") == 3
+    assert kinds.count("join_condition") == 1
+    assert kinds.count("table_expression") == 3
+    assert "limit" in kinds
+    assert "where" in kinds
+
+
+def test_semantic_ranges_degrade_without_syntax_support() -> None:
+    assert _service("SELECT 1", language=None).semantic_ranges(Position(0, 0)) == ()

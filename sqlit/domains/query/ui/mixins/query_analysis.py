@@ -127,6 +127,32 @@ class QueryAnalysisMixin:
         if target is not None:
             self._apply_syntax_selection(target, remember=current)
 
+    def action_show_syntax_object_picker(self: QueryMixinHost) -> None:
+        """Choose a semantic object from the current SQL statement."""
+        from sqlit.domains.query.ui.screens import (
+            SyntaxObjectPickerScreen,
+            syntax_kind_label,
+        )
+
+        self._clear_count_buffer()
+        row, col = self._query_logical_head()
+        selections = self._get_query_analysis_service().semantic_ranges(Position(row, col))
+        if not selections:
+            self.notify("No SQL objects found at cursor", severity="warning")
+            return
+        current = self._syntax_selection_base()
+
+        def handle_result(target: SyntaxRange | None) -> None:
+            if target is None:
+                return
+            self._apply_syntax_selection(target, remember=current)
+            self.notify(f"Selected {syntax_kind_label(target.kind)}")
+
+        self.push_screen(
+            SyntaxObjectPickerScreen(self.query_input.text, selections),
+            handle_result,
+        )
+
     def _select_semantic_target(
         self: QueryMixinHost, target_type: SemanticTarget
     ) -> None:

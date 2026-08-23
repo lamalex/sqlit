@@ -74,6 +74,7 @@
         "shrink_syntax_selection": "alt+i",
         "select_next_syntax_sibling": "alt+n",
         "select_previous_syntax_sibling": "alt+p",
+        "show_syntax_object_picker": "alt+s",
         "g_leader_key": "g",
         "show_history": "backspace",
         "new_query": "ctrl+n",

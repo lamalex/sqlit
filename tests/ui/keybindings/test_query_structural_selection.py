@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from textual.widgets import OptionList
 
+from sqlit.domains.query.ui.screens import SyntaxObjectPickerScreen
 from sqlit.domains.shell.app.main import SSMSTUI
 
 from ..mocks import MockConnectionStore, MockSettingsStore, build_test_services
@@ -225,3 +227,53 @@ async def test_match_menu_recovers_ranges_from_incomplete_join(
         await pilot.press("m", key)
 
         assert app._ordered_selection(app.query_input.selection) == expected
+
+
+@pytest.mark.asyncio
+async def test_syntax_picker_lists_objects_from_the_outer_statement() -> None:
+    app = _make_app()
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = INCOMPLETE_JOIN_SQL
+        app._set_normal_selection((1, 8))
+
+        await pilot.press("alt+s")
+
+        assert isinstance(app.screen, SyntaxObjectPickerScreen)
+        option_list = app.screen.query_one("#syntax-object-picker-list", OptionList)
+        assert option_list.option_count == 13
+
+
+@pytest.mark.asyncio
+async def test_syntax_picker_filters_and_selects_join_condition() -> None:
+    app = _make_app()
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = INCOMPLETE_JOIN_SQL
+        app._set_normal_selection((1, 8))
+
+        await pilot.press("alt+s", "j", "o", "i", "n")
+        option_list = app.screen.query_one("#syntax-object-picker-list", OptionList)
+        assert option_list.option_count == 1
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert app._ordered_selection(app.query_input.selection) == ((8, 13), (8, 16))
+
+
+@pytest.mark.asyncio
+async def test_cancelling_syntax_picker_preserves_selection() -> None:
+    app = _make_app()
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = SQL
+        app._set_normal_selection((0, 8))
+        original = app._query_selection
+
+        await pilot.press("alt+s", "escape")
+
+        assert app._query_selection == original
