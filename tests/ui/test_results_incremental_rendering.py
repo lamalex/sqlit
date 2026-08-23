@@ -101,6 +101,28 @@ async def test_incremental_rendering_skips_decimal_scan_without_initial_decimal(
 
 
 @pytest.mark.asyncio
+async def test_query_error_replaces_visible_stacked_results():
+    connections = [create_test_connection("test-db", "sqlite")]
+    services = build_test_services(
+        connection_store=MockConnectionStore(connections),
+        settings_store=MockSettingsStore({"theme": "tokyo-night"}),
+    )
+    app = SSMSTUI(services=services)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app._show_stacked_results_mode()
+        assert app.results_area.has_class("stacked-mode")
+
+        app._show_error_in_results("Query error: invalid SQL", "")
+        await pilot.pause()
+
+        assert not app.results_area.has_class("stacked-mode")
+        assert app._last_result_columns == ["Error"]
+        assert app._last_result_rows == [("Query error: invalid SQL",)]
+
+
+@pytest.mark.asyncio
 async def test_incremental_rendering_fallback_on_append_error(monkeypatch):
     """Fallback should trigger when incremental append fails."""
     from sqlit.shared.ui.widgets_tables import SqlitDataTable

@@ -7,8 +7,8 @@ import platform
 import subprocess
 import sys
 import time
-from datetime import datetime
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
@@ -24,7 +24,6 @@ from textual.worker import Worker
 
 from sqlit.core.input_context import InputContext
 from sqlit.core.key_router import resolve_action
-from sqlit.domains.shell.app.keymap_manager import KeymapManager
 from sqlit.core.vim import VimMode
 from sqlit.domains.connections.domain.config import ConnectionConfig
 from sqlit.domains.connections.providers.model import DatabaseProvider
@@ -37,6 +36,7 @@ from sqlit.domains.results.ui.mixins.results import ResultsMixin
 from sqlit.domains.results.ui.mixins.results_filter import ResultsFilterMixin
 from sqlit.domains.shell.app.commands import dispatch_command
 from sqlit.domains.shell.app.idle_scheduler import IdleScheduler
+from sqlit.domains.shell.app.keymap_manager import KeymapManager
 from sqlit.domains.shell.app.omarchy import DEFAULT_THEME
 from sqlit.domains.shell.app.startup_flow import run_on_mount
 from sqlit.domains.shell.app.theme_manager import ThemeManager
@@ -301,6 +301,10 @@ class SSMSTUI(
         # before the widget is mounted, so guard it.
         active_table_info: dict[str, Any] | None = None
         cursor_column_name: str | None = None
+        results_selection_active = False
+        results_selection_mode = "cell"
+        results_selection_cell_count = 1
+        results_selection_row_count = 1
         try:
             rt, columns, _rows, stacked = self._get_active_results_context()
             active_table_info = self._get_active_results_table_info(rt, stacked) if rt else None
@@ -308,6 +312,13 @@ class SSMSTUI(
                 col_index = rt.cursor_coordinate.column
                 if 0 <= col_index < len(columns):
                     cursor_column_name = columns[col_index]
+                min_row, max_row, min_col, max_col = rt.results_selection_bounds()
+                results_selection_active = rt.results_selection_active
+                results_selection_mode = rt.results_selection_mode
+                results_selection_row_count = max_row - min_row + 1
+                results_selection_cell_count = (
+                    results_selection_row_count * (max_col - min_col + 1)
+                )
         except Exception:
             active_table_info = None
             cursor_column_name = None
@@ -351,6 +362,10 @@ class SSMSTUI(
             last_result_is_error=last_result_is_error,
             has_results=has_results,
             stacked_result_count=stacked_result_count,
+            results_selection_active=results_selection_active,
+            results_selection_mode=results_selection_mode,
+            results_selection_cell_count=results_selection_cell_count,
+            results_selection_row_count=results_selection_row_count,
             count_buffer=self._count_buffer,
             cursor_column_is_foreign_key=cursor_column_is_foreign_key,
             cursor_column_is_foreign_key_target=cursor_column_is_foreign_key_target,
@@ -492,12 +507,12 @@ class SSMSTUI(
 
         if action is None and ctx.leader_pending and hasattr(self, "_cancel_leader_pending"):
             cast(UINavigationMixinHost, self)._cancel_leader_pending()
-            ctx = self._get_input_context()
-            action = resolve_action(
-                event.key,
-                ctx,
-                is_allowed=lambda name: self._state_machine.check_action(ctx, name),
-            )
+            # Pending sequences are atomic. An invalid continuation cancels the
+            # sequence and is consumed rather than being reinterpreted as an
+            # unrelated command in the surrounding context.
+            event.prevent_default()
+            event.stop()
+            return
 
         if action:
             handler = getattr(self, f"action_{action}", None)

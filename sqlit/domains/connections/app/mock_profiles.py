@@ -7,16 +7,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from sqlit.domains.connections.domain.config import ConnectionConfig
-from sqlit.domains.connections.providers.adapters.base import ColumnInfo
+from sqlit.domains.connections.providers.adapters.base import ColumnInfo, DatabaseAdapter
 from sqlit.domains.connections.providers.model import DatabaseProvider
 
 from .mock_adapter_core import MockDatabaseAdapter
 from .mock_default_adapters import (
-    create_default_sqlite_adapter,
     create_default_supabase_adapter,
     get_default_mock_adapter,
 )
 from .mock_provider import build_mock_provider
+from .sqlite_demo_adapter import SQLiteDemoAdapter
 
 
 @dataclass
@@ -25,19 +25,23 @@ class MockProfile:
 
     name: str
     connections: list[ConnectionConfig] = field(default_factory=list)
-    adapters: dict[str, MockDatabaseAdapter] = field(default_factory=dict)
+    adapters: dict[str, DatabaseAdapter] = field(default_factory=dict)
     use_default_adapters: bool = True  # Use default adapters when profile doesn't define one
     query_delay: float = 0.0
     demo_rows: int = 0
     demo_long_text: bool = False
     _providers: dict[str, DatabaseProvider] = field(default_factory=dict, init=False, repr=False)
 
-    def get_adapter(self, db_type: str) -> MockDatabaseAdapter:
+    def get_adapter(self, db_type: str) -> DatabaseAdapter:
         """Get adapter for a database type, falling back to defaults."""
         if db_type in self.adapters:
             adapter = self.adapters[db_type]
-            adapter.apply_query_delay(self.query_delay)
-            adapter.apply_demo_options(self.demo_rows, self.demo_long_text)
+            apply_delay = getattr(adapter, "apply_query_delay", None)
+            if callable(apply_delay):
+                apply_delay(self.query_delay)
+            apply_demo_options = getattr(adapter, "apply_demo_options", None)
+            if callable(apply_demo_options):
+                apply_demo_options(self.demo_rows, self.demo_long_text)
             return adapter
         if self.use_default_adapters:
             return get_default_mock_adapter(
@@ -79,7 +83,7 @@ def _create_sqlite_demo_profile() -> MockProfile:
     return MockProfile(
         name="sqlite-demo",
         connections=connections,
-        adapters={"sqlite": create_default_sqlite_adapter()},
+        adapters={"sqlite": SQLiteDemoAdapter()},
         use_default_adapters=True,
     )
 

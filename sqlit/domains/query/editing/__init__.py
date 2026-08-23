@@ -17,6 +17,13 @@ from .deletion import (
 )
 from .motions.registry import CHAR_MOTIONS, MOTIONS
 from .operators import OPERATORS, operator_change, operator_delete, operator_yank
+from .surround import (
+    SURROUND_PAIRS,
+    SurroundResult,
+    add_surround,
+    delete_surround,
+    replace_surround,
+)
 from .text_objects import TEXT_OBJECT_CHARS, get_text_object
 
 # Vim motion engine
@@ -55,6 +62,12 @@ __all__ = [
     "operator_change",
     "operator_delete",
     "operator_yank",
+    # Surrounds
+    "SURROUND_PAIRS",
+    "SurroundResult",
+    "add_surround",
+    "delete_surround",
+    "replace_surround",
     # Text objects
     "TEXT_OBJECT_CHARS",
     "get_text_object",

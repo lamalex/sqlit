@@ -63,6 +63,36 @@ class TestQueryExecutingState:
         assert "cancel_operation" in actions
 
 
+class TestResultsSelectionState:
+    def test_multicell_selection_allows_copy_and_collapse_only(self):
+        sm = UIStateMachine()
+        ctx = make_context(
+            focus="results",
+            has_results=True,
+            results_selection_active=True,
+            results_selection_cell_count=4,
+            results_selection_row_count=2,
+        )
+
+        assert sm.check_action(ctx, "yank_results_selection") is True
+        assert sm.check_action(ctx, "collapse_results_selection") is True
+        assert sm.check_action(ctx, "edit_cell") is False
+        assert sm.check_action(ctx, "delete_row") is False
+
+    def test_single_row_selection_allows_delete_but_not_multicell_update(self):
+        sm = UIStateMachine()
+        ctx = make_context(
+            focus="results",
+            has_results=True,
+            results_selection_active=True,
+            results_selection_cell_count=3,
+            results_selection_row_count=1,
+        )
+
+        assert sm.check_action(ctx, "delete_row") is True
+        assert sm.check_action(ctx, "edit_cell") is False
+
+
 class TestStateMachineActionValidation:
     """Test that the state machine correctly validates actions."""
 

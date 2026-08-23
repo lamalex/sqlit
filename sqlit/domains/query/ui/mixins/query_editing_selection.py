@@ -15,6 +15,290 @@ if TYPE_CHECKING:
 class QueryEditingSelectionMixin:
     """Selection-related actions for the query editor."""
 
+    def _query_logical_head(self: QueryMixinHost) -> tuple[int, int]:
+        tracked_cursor = getattr(self, "_normal_cursor", None)
+        tracked_textual_cursor = getattr(self, "_normal_textual_cursor", None)
+        selection = self.query_input.selection
+        tracking_is_visible = (
+            selection.start != selection.end or tracked_cursor == tracked_textual_cursor
+        )
+        if (
+            tracked_cursor is not None
+            and self.query_input.cursor_location == tracked_textual_cursor
+            and tracking_is_visible
+        ):
+            return tracked_cursor
+        return self.query_input.cursor_location
+
+    def _set_normal_selection(
+        self: QueryMixinHost,
+        position: tuple[int, int] | None = None,
+    ) -> None:
+        """Select the character under the NORMAL-mode cursor."""
+        from textual.widgets.text_area import Selection
+
+        text = self.query_input.text
+        lines = text.split("\n")
+        row, col = position or self.query_input.cursor_location
+        row = min(max(row, 0), len(lines) - 1)
+        col = min(max(col, 0), len(lines[row]))
+
+        if col < len(lines[row]):
+            cursor = (row, col)
+            boundary = (row, col + 1)
+        elif row < len(lines) - 1:
+            cursor = (row, col)
+            boundary = (row + 1, 0)
+        elif col > 0:
+            cursor = (row, col - 1)
+            boundary = (row, col)
+        else:
+            cursor = (row, col)
+            boundary = cursor
+
+        # Reverse the Textual selection so its logical head remains on the
+        # selected character rather than one position after it.
+        self.query_input.selection = Selection(boundary, cursor)
+        self._normal_cursor = cursor
+        self._normal_textual_cursor = cursor
+
+    def _set_normal_motion_selection(
+        self: QueryMixinHost,
+        origin: tuple[int, int],
+        destination: tuple[int, int],
+        motion_key: str,
+    ) -> None:
+        """Apply Helix-style NORMAL selection semantics for a motion."""
+        from textual.widgets.text_area import Selection
+
+        if origin == destination:
+            self._set_normal_selection(destination)
+            return
+
+        if motion_key in {"e", "E"}:
+            boundary = self._position_after(destination)
+            self.query_input.selection = Selection(origin, boundary)
+            self._normal_cursor = destination
+            self._normal_textual_cursor = boundary
+            return
+
+        if motion_key not in {"w", "W", "b", "B"}:
+            self._set_normal_selection(destination)
+            return
+
+        self.query_input.selection = Selection(origin, destination)
+        self._normal_cursor = destination
+        self._normal_textual_cursor = destination
+
+    def action_collapse_selection(self: QueryMixinHost) -> None:
+        """Collapse the current range to its logical head."""
+        self._clear_count_buffer()
+        cursor = self._query_logical_head()
+        self._set_normal_selection(cursor)
+
+    def action_match_leader_key(self: QueryMixinHost) -> None:
+        """Wait for an inner/around text-object selector."""
+        self._clear_count_buffer()
+        self._start_leader_pending("match")
+
+    def action_match_inner(self: QueryMixinHost) -> None:
+        self._clear_leader_pending()
+        self._show_select_text_object_menu(around=False)
+
+    def action_match_around(self: QueryMixinHost) -> None:
+        self._clear_leader_pending()
+        self._show_select_text_object_menu(around=True)
+
+    def action_match_surround_add(self: QueryMixinHost) -> None:
+        """Prompt for a delimiter to add around the selection."""
+        self._clear_leader_pending()
+        self._show_surround_menu("add")
+
+    def action_match_surround_delete(self: QueryMixinHost) -> None:
+        """Prompt for an enclosing delimiter to delete."""
+        self._clear_leader_pending()
+        self._show_surround_menu("delete")
+
+    def action_match_surround_replace(self: QueryMixinHost) -> None:
+        """Prompt for enclosing and replacement delimiters."""
+        self._clear_leader_pending()
+        self._show_surround_menu("replace")
+
+    def _show_surround_menu(self: QueryMixinHost, operation: str) -> None:
+        from sqlit.domains.query.ui.screens import SurroundMenuScreen
+
+        def handle_result(delimiters: str | None) -> None:
+            if not delimiters:
+                return
+            self._apply_surround_edit(operation, delimiters)
+
+        self.push_screen(SurroundMenuScreen(operation), handle_result)
+
+    def _apply_surround_edit(
+        self: QueryMixinHost, operation: str, delimiters: str
+    ) -> None:
+        from textual.widgets.text_area import Selection
+
+        from sqlit.core.vim import VimMode
+        from sqlit.domains.query.editing import (
+            add_surround,
+            delete_surround,
+            replace_surround,
+        )
+
+        selection = self.query_input.selection
+        backward = selection.start > selection.end
+        start, end = self._ordered_selection(selection)
+        text = self.query_input.text
+        start_offset = self._location_to_offset(text, start)
+        end_offset = self._location_to_offset(text, end)
+        was_visual = self.vim_mode in {VimMode.VISUAL, VimMode.VISUAL_LINE}
+        if self.vim_mode == VimMode.VISUAL:
+            head = self._visual_cursor or (start if backward else self._position_before(end))
+        elif self.vim_mode == VimMode.VISUAL_LINE:
+            head = start if backward else self._position_before(end)
+        else:
+            head = self._query_logical_head()
+        head_offset = self._location_to_offset(text, head)
+
+        if operation == "add":
+            result = add_surround(text, start_offset, end_offset, delimiters)
+        elif operation == "delete":
+            result = delete_surround(text, start_offset, end_offset, delimiters)
+        else:
+            result = replace_surround(
+                text, start_offset, end_offset, delimiters[0], delimiters[1]
+            )
+        if result is None:
+            self.notify("No matching surround found", severity="warning")
+            return
+
+        original_length = end_offset - start_offset
+        payload_length = result.end - result.start
+        head_delta = max(0, head_offset - start_offset)
+        if payload_length < original_length and head_delta >= payload_length:
+            head_delta = max(0, payload_length - 1)
+        else:
+            head_delta = min(head_delta, payload_length)
+
+        self._push_undo_state()
+        self.query_input.text = result.text
+        new_start = self._offset_to_location(result.text, result.start)
+        new_end = self._offset_to_location(result.text, result.end)
+        new_head = self._offset_to_location(result.text, result.start + head_delta)
+        if backward:
+            self.query_input.selection = Selection(new_end, new_start)
+            textual_cursor = new_start
+        else:
+            self.query_input.selection = Selection(new_start, new_end)
+            textual_cursor = new_end
+        self._normal_cursor = new_head
+        self._normal_textual_cursor = textual_cursor
+        if was_visual:
+            self._visual_anchor = None
+            self._visual_cursor = None
+            self._visual_line_anchor_row = None
+            self.vim_mode = VimMode.NORMAL
+            self._update_vim_mode_visuals()
+            self._update_footer_bindings()
+
+    def action_replace_selection(self: QueryMixinHost) -> None:
+        """Replace every selected character with one typed character."""
+        from sqlit.domains.query.ui.screens import CharPendingMenuScreen
+
+        self._clear_count_buffer()
+        if not self._has_selection():
+            self._set_normal_selection()
+        if not self._has_selection():
+            return
+
+        def handle_result(char: str | None) -> None:
+            if not char:
+                return
+
+            from textual.widgets.text_area import Selection
+
+            from sqlit.domains.query.editing import get_selection_text, operator_delete, paste_text
+
+            selection = self.query_input.selection
+            backward = selection.start > selection.end
+            start, end = self._ordered_selection(selection)
+            selected = get_selection_text(self.query_input.text, start[0], start[1], end[0], end[1])
+            replacement = "".join("\n" if value == "\n" else char for value in selected)
+
+            self._push_undo_state()
+            deleted = operator_delete(self.query_input.text, self._selection_range(start, end))
+            replaced = paste_text(deleted.text, deleted.row, deleted.col, replacement)
+            self.query_input.text = replaced.text
+
+            selection_end = (replaced.row, replaced.col)
+            if backward:
+                self.query_input.selection = Selection(selection_end, start)
+                self._normal_cursor = start
+                self._normal_textual_cursor = start
+            else:
+                self.query_input.selection = Selection(start, selection_end)
+                self._normal_cursor = self._position_before(selection_end)
+                self._normal_textual_cursor = selection_end
+
+        self.push_screen(CharPendingMenuScreen("r"), handle_result)
+
+    def _show_select_text_object_menu(self: QueryMixinHost, *, around: bool) -> None:
+        from sqlit.domains.query.ui.screens import TextObjectMenuScreen
+
+        def handle_result(obj_char: str | None) -> None:
+            if not obj_char:
+                return
+
+            from textual.widgets.text_area import Selection
+
+            from sqlit.domains.query.editing import get_text_object
+
+            tracked_cursor = getattr(self, "_normal_cursor", None)
+            tracked_textual_cursor = getattr(self, "_normal_textual_cursor", None)
+            if tracked_cursor is not None and self.query_input.cursor_location == tracked_textual_cursor:
+                row, col = tracked_cursor
+            else:
+                row, col = self.query_input.cursor_location
+            range_obj = get_text_object(obj_char, self.query_input.text, row, col, around)
+            if range_obj is None:
+                return
+
+            if range_obj.start > range_obj.end:
+                cursor = (range_obj.start.row, range_obj.start.col)
+                self.query_input.selection = Selection(cursor, cursor)
+                self._normal_cursor = cursor
+                self._normal_textual_cursor = cursor
+                return
+
+            ordered = range_obj.ordered()
+            start = (ordered.start.row, ordered.start.col)
+            end = self._position_after((ordered.end.row, ordered.end.col))
+            self.query_input.selection = Selection(start, end)
+            self._normal_cursor = (ordered.end.row, ordered.end.col)
+            self._normal_textual_cursor = end
+
+        mode = "around" if around else "inner"
+        self.push_screen(TextObjectMenuScreen(mode, operator="select"), handle_result)
+
+    def _position_after(self: QueryMixinHost, position: tuple[int, int]) -> tuple[int, int]:
+        lines = self.query_input.text.split("\n")
+        row, col = position
+        if row < len(lines) and col < len(lines[row]):
+            return row, col + 1
+        if row < len(lines) - 1:
+            return row + 1, 0
+        return row, col
+
+    def _position_before(self: QueryMixinHost, position: tuple[int, int]) -> tuple[int, int]:
+        lines = self.query_input.text.split("\n")
+        row, col = position
+        if col > 0:
+            return row, col - 1
+        if row > 0:
+            return row - 1, len(lines[row - 1])
+        return position
+
     def _ordered_selection(
         self: QueryMixinHost,
         selection: Selection,
@@ -66,14 +350,12 @@ class QueryEditingSelectionMixin:
 
         # Clear selection after a short delay
         def clear_flash() -> None:
-            self.query_input.selection = Selection(cursor, cursor)
+            self._set_normal_selection(cursor)
 
         self.set_timer(0.15, clear_flash)
 
     def _yank_selection(self: QueryMixinHost) -> None:
         """Yank the current selection."""
-        from textual.widgets.text_area import Selection
-
         from sqlit.domains.query.editing import get_selection_text
 
         selection = self.query_input.selection
@@ -94,7 +376,7 @@ class QueryEditingSelectionMixin:
             cursor = self.query_input.cursor_location
 
             def clear_selection() -> None:
-                self.query_input.selection = Selection(cursor, cursor)
+                self._set_normal_selection(cursor)
 
             self.set_timer(0.15, clear_selection)
 
@@ -132,8 +414,6 @@ class QueryEditingSelectionMixin:
 
     def _delete_selection(self: QueryMixinHost) -> None:
         """Delete the current selection."""
-        from textual.widgets.text_area import Selection
-
         from sqlit.domains.query.editing import get_selection_text, operator_delete
 
         selection = self.query_input.selection
@@ -158,9 +438,7 @@ class QueryEditingSelectionMixin:
         self.query_input.text = result.text
         self.query_input.cursor_location = (result.row, result.col)
 
-        # Clear selection
-        cursor = self.query_input.cursor_location
-        self.query_input.selection = Selection(cursor, cursor)
+        self._set_normal_selection(self.query_input.cursor_location)
 
     def _extend_selection(self: QueryMixinHost, new_row: int, new_col: int) -> None:
         """Extend selection from current anchor to new position."""

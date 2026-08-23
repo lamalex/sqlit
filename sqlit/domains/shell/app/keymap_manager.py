@@ -225,7 +225,7 @@ class KeymapManager:
         self.load_custom_keymap(settings)
         return settings
 
-    def load_custom_keymap(self, settings: dict) -> None:  # noqa: ARG002
+    def load_custom_keymap(self, settings: dict) -> None:
         """Load (or auto-scaffold) ``~/.config/sqlit/keymap.json``.
 
         The ``settings`` argument is kept for signature compatibility with
@@ -411,8 +411,24 @@ class KeymapManager:
         base_action = defaults.get_action_keys()
         base_leader = defaults.get_leader_commands()
 
+        action_keys_data = keymap_data.get("action_keys", {})
+        if isinstance(action_keys_data, dict):
+            query_normal = action_keys_data.get("query_normal")
+            if (
+                isinstance(query_normal, dict)
+                and query_normal.get("new_query") == "N"
+                and not {
+                    "query_search",
+                    "query_search_next",
+                    "query_search_previous",
+                }.intersection(query_normal)
+            ):
+                # Migrate the previous generated default so N can become search-prev.
+                query_normal = {**query_normal, "new_query": "ctrl+n"}
+                action_keys_data = {**action_keys_data, "query_normal": query_normal}
+
         user_action_overrides, action_unbinds = self._parse_action_overrides(
-            keymap_data.get("action_keys", {}), base_action, base_leader
+            action_keys_data, base_action, base_leader
         )
         user_leader_overrides, leader_unbinds = self._parse_leader_overrides(
             keymap_data.get("leader_commands", {}), base_leader

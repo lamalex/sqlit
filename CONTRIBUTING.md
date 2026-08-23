@@ -259,7 +259,7 @@ One state: There should be no settings or preferences with important exception o
 To make sqlit as fast' as possible, sqlit has a large focus on keybindings.
 To make sqlit as 'easy' as possible, all necessary keybindings to do 'CEQR' well, must be visible at all times.
 To make sqlit as 'aesthetically pleasing' any keybinding not strictly necessary to perform 'CEQR' in a 'easy' and 'fast' way will be hidden behind help <?> or command menu <space>
-Keybindings will favour 'vim' traditions as the core audience is developers who enjoy working in terminals.
+Keybindings favour Helix's selection-first traditions: select a range, then operate on it. Pending key sequences are atomic; an invalid continuation must cancel without being replayed as another command.
 We shy away from ^+ commands and will only use them where it is not natural to have a "insert/normal" mode and where input is crucial. (Typical is pop up modals)
 
 **Ideal:**
@@ -270,11 +270,10 @@ sqlit should provide fun and a feeling of mastery and satisfaction for those who
 
 1. Intuitive to learn
 2. Harmony (we should think about which keybindings are used in sequence, in typical to flow and maximize user mastery satisfaction and opportunity to combine them fast)
-3. Traditions (vim, specifically)
+3. Traditions (Helix, specifically)
 
 **Example:**
-<e> = explorer pane, <q> = query pane, <r> = results pane.
-Rationale: E;Q;R satisfies both intuitiveness (each binding is the first letter of the pane), harmony (proximity: qwerty speaks for itself)
+<ctrl+w> followed by <h/j/k/l> navigates panes using Helix window-mode conventions. Bare letters remain available for editor commands.
 
 ### Cloud credential regression test
 

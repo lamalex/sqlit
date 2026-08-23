@@ -35,6 +35,7 @@ class QueryEditingUndoMixin:
         if state:
             self.query_input.text = state.text
             self.query_input.cursor_location = (state.cursor_row, state.cursor_col)
+            self._set_normal_selection()
 
     def action_redo(self: QueryMixinHost) -> None:
         """Redo the last undone edit."""
@@ -46,3 +47,4 @@ class QueryEditingUndoMixin:
         if state:
             self.query_input.text = state.text
             self.query_input.cursor_location = (state.cursor_row, state.cursor_col)
+            self._set_normal_selection()

@@ -63,9 +63,6 @@ class ResultsFilterMixin:
         self._results_filter_row_texts = []
         self._results_filter_row_texts_lower = []
 
-        if not self.results_table.has_focus:
-            self.results_table.focus()
-
         if self.results_area.has_class("stacked-mode"):
             section, table = self._get_active_stacked_results_target()
             if section is None or table is None:
@@ -83,12 +80,17 @@ class ResultsFilterMixin:
             self._results_filter_original_rows = rows
             self._results_filter_matching_rows = list(rows)
             self._prime_results_filter_cache(rows)
+            table.collapse_results_selection()
             self.results_area.add_class("results-filter-active")
             try:
                 table.focus()
             except Exception:
                 pass
         else:
+            table = self.results_table
+            table.collapse_results_selection()
+            if not table.has_focus:
+                table.focus()
             # Check if there are results to filter
             if not self._last_result_rows:
                 self.notify("No results to filter", severity="warning")
@@ -397,7 +399,9 @@ class ResultsFilterMixin:
             if self._results_filter_stacked
             else self._last_result_columns
         )
-        self._replace_results_table_raw_for_filter(columns, highlighted_rows)
+        self._replace_results_table_raw_for_filter(
+            columns, highlighted_rows, raw_rows=matching_rows
+        )
 
     @staticmethod
     def _build_row_text(row: tuple) -> str:
@@ -461,16 +465,23 @@ class ResultsFilterMixin:
             self._last_result_rows = list(self._results_filter_original_rows)
 
     def _replace_results_table_raw_for_filter(
-        self: ResultsFilterMixinHost, columns: list[str], rows: list[tuple]
+        self: ResultsFilterMixinHost,
+        columns: list[str],
+        rows: list[tuple],
+        *,
+        raw_rows: list[tuple] | None = None,
     ) -> None:
         if self._results_filter_stacked:
-            self._replace_results_section_table(columns, rows, escape=False)
+            self._replace_results_section_table(
+                columns, rows, escape=False, raw_rows=raw_rows
+            )
         else:
-            self._replace_results_table_raw(columns, rows)
+            new_table = self._replace_results_table_raw(columns, rows)
+            new_table.set_result_data(columns, raw_rows if raw_rows is not None else rows)
 
     def _replace_results_table_for_filter(
         self: ResultsFilterMixinHost, columns: list[str], rows: list[tuple]
-    ) -> None:
+    ) -> SqlitDataTable | None:
         if self._results_filter_stacked:
             self._replace_results_section_table(columns, rows, escape=True)
         else:
@@ -525,24 +536,34 @@ class ResultsFilterMixin:
         return None
 
     def _replace_results_section_table(
-        self: ResultsFilterMixinHost, columns: list[str], rows: list[tuple], *, escape: bool
+        self: ResultsFilterMixinHost,
+        columns: list[str],
+        rows: list[tuple],
+        *,
+        escape: bool,
+        raw_rows: list[tuple] | None = None,
     ) -> None:
         section = self._results_filter_target_section
         table = self._results_filter_target_table
         if section is None or table is None:
-            return
+            return None
 
         new_table = self._build_results_section_table(columns, rows, escape=escape)
+        if raw_rows is not None:
+            new_table.set_result_data(columns, raw_rows)
         section.mount(new_table, after=table)
         table.remove()
         self._results_filter_target_table = new_table
+        return new_table
 
     def _build_results_section_table(
         self: ResultsFilterMixinHost, columns: list[str], rows: list[tuple], *, escape: bool
     ) -> SqlitDataTable:
+        raw_result_rows = list(rows)
         if not columns:
             columns = ["(empty)"]
             rows = []
+            raw_result_rows = []
 
         if escape:
             rows = [
@@ -559,5 +580,6 @@ class ResultsFilterMixin:
             render_markup=not escape,
             null_rep="NULL",
         )
+        table.set_result_data(columns, raw_result_rows)
         table.styles.height = table_height
         return table

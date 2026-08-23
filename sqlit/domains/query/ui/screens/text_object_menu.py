@@ -58,7 +58,7 @@ class TextObjectMenuScreen(ModalScreen[str | None]):
 
         Args:
             mode: Either "inner" or "around"
-            operator: The operator context ("delete", "yank", or "change")
+            operator: The command context ("select", "delete", "yank", or "change")
         """
         super().__init__()
         self._mode = mode

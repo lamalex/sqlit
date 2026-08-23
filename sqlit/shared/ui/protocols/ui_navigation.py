@@ -22,6 +22,7 @@ class UIStateProtocol(Protocol):
     _leader_pending: bool
     _leader_pending_menu: str
     _last_active_pane: str | None
+    _last_right_pane: str
     _state_machine: Any
     _active_database: str | None
     _query_target_database: str | None
@@ -51,6 +52,9 @@ class UINavigationActionsProtocol(Protocol):
         ...
 
     def _show_error_in_results(self, message: str, timestamp: str) -> None:
+        ...
+
+    def _show_single_result_mode(self) -> None:
         ...
 
     def _show_leader_menu(self, menu: str = "leader") -> None:

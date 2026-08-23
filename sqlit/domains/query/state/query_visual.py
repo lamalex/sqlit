@@ -10,14 +10,14 @@ from sqlit.core.vim import VimMode
 class QueryVisualModeState(State):
     """Query editor in VISUAL mode (v)."""
 
-    help_category = "Query Editor (Visual)"
+    help_category = "Query Editor (Select)"
     keymap_context = "query_visual"
 
     def _setup_actions(self) -> None:
         self.allows(
             "exit_visual_mode",
-            label="Exit Visual",
-            help="Exit visual mode",
+            label="Normal Mode",
+            help="Return to normal mode",
         )
         self.forbids("enter_visual_mode")
         self.forbids("enter_insert_mode")
@@ -25,12 +25,13 @@ class QueryVisualModeState(State):
         self.forbids("yank_leader_key")
         self.forbids("change_leader_key")
         # Switch to visual line
-        self.allows("switch_to_visual_line_mode", help="Switch to visual line mode")
+        self.allows("switch_to_visual_line_mode", help="Select full lines")
         # Visual operators
-        self.allows("visual_yank", label="Yank", help="Yank selection")
+        self.allows("visual_yank", label="Copy", help="Copy selection")
         self.allows("visual_delete", label="Delete", help="Delete selection")
         self.allows("visual_change", label="Change", help="Change selection")
         self.allows("visual_execute", label="Execute", help="Execute selection")
+        self.allows("match_leader_key", label="Match", help="Edit selection surrounds")
         # All cursor motions
         self.allows("cursor_left", help="Move cursor left")
         self.allows("cursor_right", help="Move cursor right")
@@ -59,7 +60,7 @@ class QueryVisualModeState(State):
         left.append(
             DisplayBinding(
                 key=resolve_display_key("exit_visual_mode") or "<esc>",
-                label="Exit Visual",
+                label="Normal Mode",
                 action="exit_visual_mode",
             )
         )
@@ -67,7 +68,7 @@ class QueryVisualModeState(State):
         left.append(
             DisplayBinding(
                 key=resolve_display_key("visual_yank") or "y",
-                label="Yank",
+                label="Copy",
                 action="visual_yank",
             )
         )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Collapsible, Static
@@ -229,6 +230,7 @@ class StackedResultsContainer(VerticalScroll):
             render_markup=False,
             null_rep="NULL",
         )
+        table.set_result_data(columns, rows)
         table.styles.height = table_height
         return table
 

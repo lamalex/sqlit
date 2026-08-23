@@ -15,6 +15,7 @@ from .query_editing_common import QueryEditingCommonMixin
 from .query_editing_cursor import QueryEditingCursorMixin
 from .query_editing_format import QueryEditingFormatMixin
 from .query_editing_operators import QueryEditingOperatorsMixin
+from .query_editing_search import QueryEditingSearchMixin
 from .query_editing_selection import QueryEditingSelectionMixin
 from .query_editing_undo import QueryEditingUndoMixin
 from .query_editing_visual import QueryEditingVisualMixin
@@ -30,6 +31,7 @@ class QueryMixin(
     QueryEditingCommonMixin,
     QueryEditingUndoMixin,
     QueryEditingSelectionMixin,
+    QueryEditingSearchMixin,
     QueryEditingOperatorsMixin,
     QueryEditingClipboardMixin,
     QueryEditingFormatMixin,

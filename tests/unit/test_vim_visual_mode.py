@@ -175,6 +175,7 @@ class TestVisualModeKeyRouting:
             "y": "visual_yank",
             "d": "visual_delete",
             "c": "visual_change",
+            "x": "switch_to_visual_line_mode",
             "V": "switch_to_visual_line_mode",
             "escape": "exit_visual_mode",
             "enter": "visual_execute",
@@ -190,6 +191,7 @@ class TestVisualModeKeyRouting:
 
         expected = {
             "j": "cursor_down",
+            "x": "cursor_down",
             "k": "cursor_up",
             "G": "cursor_last_line",
             "y": "visual_line_yank",
@@ -209,6 +211,7 @@ class TestVisualModeKeyRouting:
         is_allowed = lambda name: sm.check_action(ctx, name)
 
         assert resolve_action("v", ctx, is_allowed=is_allowed) == "enter_visual_mode"
+        assert resolve_action("x", ctx, is_allowed=is_allowed) == "enter_visual_line_mode"
         assert resolve_action("V", ctx, is_allowed=is_allowed) == "enter_visual_line_mode"
 
 

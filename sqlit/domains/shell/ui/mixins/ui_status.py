@@ -115,9 +115,10 @@ class UIStatusMixin:
         from sqlit.core.keymap import format_key, get_keymap
 
         km = get_keymap()
-        explorer_key = format_key(km.action("focus_explorer") or "e")
-        query_key = format_key(km.action("focus_query") or "q")
-        results_key = format_key(km.action("focus_results") or "r")
+        window_key = format_key(km.action("window_leader_key") or "ctrl+w")
+        explorer_key = f"{window_key}{format_key(km.leader('left', 'window') or 'h')}"
+        query_key = f"{window_key}{format_key(km.leader('up', 'window') or 'k')}"
+        results_key = f"{window_key}{format_key(km.leader('down', 'window') or 'j')}"
 
         set_title(pane_explorer, explorer_key, explorer_label, active=active_pane == "explorer")
         query_label_builder = getattr(self, "_query_document_label", None)
@@ -451,6 +452,7 @@ class UIStatusMixin:
         self._last_result_rows = [(error_text,)]
         self._last_result_row_count = 1
 
+        self._show_single_result_mode()
         self._replace_results_table(["Error"], [(error_text,)])
         self._update_footer_bindings()
 

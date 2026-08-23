@@ -33,6 +33,10 @@ class InputContext:
     last_result_is_error: bool
     has_results: bool
     stacked_result_count: int = 0
+    results_selection_active: bool = False
+    results_selection_mode: str = "cell"
+    results_selection_cell_count: int = 1
+    results_selection_row_count: int = 1
     count_buffer: str = ""
     # True when the column under the results-table cursor is an outgoing FK column
     # (i.e. pressing the navigate-FK key would take you to the referenced row).

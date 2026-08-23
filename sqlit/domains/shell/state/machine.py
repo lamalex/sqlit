@@ -213,9 +213,11 @@ class UIStateMachine:
 
         # NAVIGATION
         s = HelpSection(id="navigation", title="NAVIGATION")
-        s.binding(k("focus_explorer", "e"), "Focus Explorer pane")
-        s.binding(k("focus_query", "q"), "Focus Query pane")
-        s.binding(k("focus_results", "r"), "Focus Results pane")
+        window_key = k("window_leader_key", "^w")
+        s.binding(f"{window_key}{lk('left', 'window', 'h')}", "Focus Explorer pane")
+        s.binding(f"{window_key}{lk('up', 'window', 'k')}", "Focus Query pane")
+        s.binding(f"{window_key}{lk('down', 'window', 'j')}", "Focus Results pane")
+        s.binding(f"{window_key}{lk('right', 'window', 'l')}", "Focus last right pane")
         s.binding(leader_key, "Open command menu")
         s.binding(k("show_help", "?"), "Show this help")
         sections.append(s)
@@ -246,11 +248,24 @@ class UIStateMachine:
         s.binding(ks([("open_line_below", "o"), ("open_line_above", "O")]), "Open line below/above")
         s.binding(k("change_line_end_motion", "C"), "Change to line end")
         s.binding(k("delete_line_end", "D"), "Delete to line end")
-        s.binding(f"{k('execute_query', '<enter>')}/{g_key}{lk('execute_query', 'g', 'r')}", "Execute query")
-        s.binding(f"{g_key}{lk('execute_query_atomic', 'g', 't')}", "Execute as transaction")
+        s.binding(k("execute_query", "<enter>"), "Execute query")
+        s.binding(f"{leader_key}{lk('execute_query_atomic', 'leader', 'r')}", "Execute as transaction")
+        s.binding(f"{leader_key}{lk('execute_single_statement', 'leader', 's')}", "Execute statement at cursor")
         s.binding(k("show_history", "<backspace>"), "Query history")
-        s.binding(k("new_query", "N"), "New query (clear)")
         s.binding(f"{leader_key}{lk('format_query', 'leader', 'p')}", "Format query")
+        s.binding(k("new_query", "^n"), "New query (clear)")
+        s.binding(k("query_search", "/"), "Search query text")
+        s.binding(
+            f"{k('query_search_next', 'n')}/{k('query_search_previous', 'N')}",
+            "Next/previous search match",
+        )
+        match = k("match_leader_key", "m")
+        s.binding(f"{match}i{{object}}/{match}a{{object}}", "Select text object")
+        s.binding(f"{match}s{{char}}", "Add surround")
+        s.binding(f"{match}d{{char}}", "Delete surround")
+        s.binding(f"{match}r{{old}}{{new}}", "Replace surround")
+        s.binding(k("collapse_selection", ";"), "Collapse selection")
+        s.binding(k("replace_selection", "r"), "Replace selection")
         s.binding(k("undo", "u"), "Undo")
         s.binding(k("redo", "^r"), "Redo")
         sections.append(s)
@@ -265,60 +280,53 @@ class UIStateMachine:
         s.binding(k("paste", "^v"), "Paste")
         sections.append(s)
 
-        # QUERY EDITOR · VISUAL MODE
+        # QUERY EDITOR · SELECT MODE
         s = HelpSection(
             id="query_visual",
-            title=f"QUERY EDITOR · VISUAL MODE ({k('enter_visual_mode', 'v')})",
+            title=f"QUERY EDITOR · SELECT MODE ({k('enter_visual_mode', 'v')})",
         )
-        s.binding(f"{k('exit_visual_mode', '<esc>')}/{k('enter_visual_mode', 'v')}", "Exit visual mode")
-        s.binding(k("switch_to_visual_line_mode", "V"), "Switch to visual line mode")
+        s.binding(f"{k('exit_visual_mode', '<esc>')}/{k('enter_visual_mode', 'v')}", "Return to normal mode")
+        s.binding(k("switch_to_visual_line_mode", "x"), "Select full lines")
         s.binding("h/j/k/l", "Extend selection")
         s.binding("w/b/e/$", "Extend by word/line motions")
-        s.binding(k("visual_yank", "y"), "Yank selection")
+        s.binding(k("visual_yank", "y"), "Copy selection")
         s.binding(k("visual_delete", "d"), "Delete selection")
         s.binding(k("visual_change", "c"), "Change selection")
         s.binding(k("visual_execute", "<enter>"), "Execute selection")
         sections.append(s)
 
-        # QUERY EDITOR · VISUAL LINE MODE
+        # QUERY EDITOR · SELECT LINE MODE
         s = HelpSection(
             id="query_visual_line",
-            title=f"QUERY EDITOR · VISUAL LINE MODE ({k('enter_visual_line_mode', 'V')})",
+            title=f"QUERY EDITOR · SELECT LINE MODE ({k('enter_visual_line_mode', 'x')})",
         )
-        s.binding(f"{k('exit_visual_line_mode', '<esc>')}/{k('enter_visual_line_mode', 'V')}", "Exit visual line mode")
-        s.binding(k("switch_to_visual_mode", "v"), "Switch to visual mode")
-        s.binding("j/k", "Extend selection down/up")
+        s.binding(k("exit_visual_line_mode", "<esc>"), "Return to normal mode")
+        s.binding(k("switch_to_visual_mode", "v"), "Switch to character selection")
+        s.binding("x/j/k", "Extend selection down/up")
         s.binding("gg/G", "Extend to first/last line")
-        s.binding(k("visual_line_yank", "y"), "Yank selected lines")
+        s.binding(k("visual_line_yank", "y"), "Copy selected lines")
         s.binding(k("visual_line_delete", "d"), "Delete selected lines")
         s.binding(k("visual_line_change", "c"), "Change selected lines")
         s.binding(k("visual_line_execute", "<enter>"), "Execute selected lines")
         sections.append(s)
 
-        # VIM OPERATORS + MOTIONS + TEXT OBJECTS
-        yank_op = k("yank_leader_key", "y")
-        del_op = k("delete_leader_key", "d")
-        chg_op = k("change_leader_key", "c")
-        s = HelpSection(id="vim_operators", title="VIM OPERATORS (NORMAL MODE)")
-        s.binding(f"{yank_op}{{motion}}", "Copy")
-        s.binding(f"{del_op}{{motion}}", "Delete")
-        s.binding(f"{chg_op}{{motion}}", "Change (delete + INSERT)")
-        s.binding(k("paste", "p"), "Paste after cursor")
-        sections.append(s)
-
-        s = HelpSection(id="vim_motions", title="VIM MOTIONS")
+        # MOVEMENT + SELECTION
+        s = HelpSection(id="modal_motions", title="MOVEMENT + SELECTION")
         s.binding(ks([("cursor_left", "h"), ("cursor_down", "j"), ("cursor_up", "k"), ("cursor_right", "l")]), "Cursor left/down/up/right")
         s.binding(ks([("cursor_word_forward", "w"), ("cursor_WORD_forward", "W")]), "Word forward")
         s.binding(ks([("cursor_word_back", "b"), ("cursor_WORD_back", "B")]), "Word backward")
         s.binding(f"{k('cursor_line_start', '0')}/^/{k('cursor_line_end', '$')}", "Line start/first char/end")
-        s.binding(f"{g_key}{lk('first_line', 'g', 'g')}/{k('cursor_last_line', 'G')}", "File start/end")
+        s.binding(f"{g_key}{lk('first_line', 'g', 'g')}/{g_key}{lk('last_line', 'g', 'e')}", "File start/end")
+        s.binding(f"{g_key}{lk('line_start', 'g', 'h')}/{g_key}{lk('line_end', 'g', 'l')}", "Line start/end")
+        s.binding(f"{g_key}{lk('first_non_blank', 'g', 's')}", "First non-whitespace")
         s.binding(f"{k('cursor_find_char', 'f')}{{c}}/{k('cursor_find_char_back', 'F')}{{c}}", "Find char forward/back")
         s.binding(f"{k('cursor_till_char', 't')}{{c}}/{k('cursor_till_char_back', 'T')}{{c}}", "Till char forward/back")
         s.binding(k("cursor_matching_bracket", "%"), "Matching bracket")
         sections.append(s)
 
-        inner = lk("inner", "yank", "i")
-        around = lk("around", "yank", "a")
+        match_key = k("match_leader_key", "m")
+        inner = f"{match_key}{lk('inner', 'match', 'i')}"
+        around = f"{match_key}{lk('around', 'match', 'a')}"
         s = HelpSection(
             id="text_objects",
             title=f"TEXT OBJECTS (with {inner}=inner, {around}=around)",
@@ -334,16 +342,27 @@ class UIStateMachine:
         # RESULTS
         s = HelpSection(id="results", title="RESULTS")
         s.binding(ks([("results_cursor_left", "h"), ("results_cursor_down", "j"), ("results_cursor_up", "k"), ("results_cursor_right", "l")]), "Navigate cells")
-        s.binding(k("view_cell", "v"), "Preview cell (inline)")
+        results_goto = k("rg_leader_key", "g")
+        s.binding(f"{results_goto}{lk('first_row', 'rg', 'g')}", "Go to first row")
+        s.binding(f"{results_goto}{lk('last_row', 'rg', 'e')}", "Go to last row")
+        s.binding(f"{results_goto}{lk('first_column', 'rg', 'h')}", "Go to first column")
+        s.binding(f"{results_goto}{lk('last_column', 'rg', 'l')}", "Go to last column")
+        s.binding(ks([("results_page_up", "ctrl+u"), ("results_page_down", "ctrl+d")]), "Move one page")
+        s.binding(k("results_column_picker", "f"), "Find column")
+        s.binding(k("enter_results_selection", "v"), "Select rectangular range")
+        s.binding(k("select_results_rows", "x"), "Select complete rows")
+        s.binding(k("collapse_results_selection", ";"), "Collapse selection")
+        s.binding(k("yank_results_selection", "y"), "Copy selection")
         s.binding(k("view_cell_full", "V"), "View full cell value")
-        s.binding(k("edit_cell", "u"), "Generate UPDATE statement")
+        s.binding(k("view_cell", "ctrl+v"), "Preview cell tooltip")
+        s.binding(k("edit_cell", "r"), "Generate UPDATE for one cell")
         s.binding(k("delete_row", "d"), "Generate DELETE statement")
         s.binding(k("results_filter", "/"), "Filter rows")
-        s.binding(k("clear_results", "x"), "Clear results")
+        s.binding(k("clear_results", "X"), "Clear results")
         s.binding(k("next_result_section", "<tab>"), "Next result set")
         s.binding(k("prev_result_section", "<s-tab>"), "Previous result set")
         s.binding(k("toggle_result_section", "z"), "Collapse/expand result")
-        results_yank = k("results_yank_leader_key", "y")
+        results_yank = k("results_yank_leader_key", "Y")
         s.subsection(f"Copy Menu ({results_yank}):")
         s.binding(f"{results_yank}{lk('cell', 'ry', 'c')}", "Copy cell")
         s.binding(f"{results_yank}{lk('row', 'ry', 'y')}", "Copy row")

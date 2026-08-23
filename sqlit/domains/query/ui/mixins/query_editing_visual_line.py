@@ -30,14 +30,11 @@ class QueryEditingVisualLineMixin:
     def action_exit_visual_line_mode(self: QueryMixinHost) -> None:
         """Exit visual line mode back to normal."""
         from sqlit.core.vim import VimMode
-        from textual.widgets.text_area import Selection
-
         self._visual_line_anchor_row = None
         self.vim_mode = VimMode.NORMAL
 
-        # Clear selection
         cursor = self.query_input.cursor_location
-        self.query_input.selection = Selection(cursor, cursor)
+        self._set_normal_selection(cursor)
 
         self._update_vim_mode_visuals()
         self._update_footer_bindings()
@@ -116,8 +113,6 @@ class QueryEditingVisualLineMixin:
     def action_visual_line_delete(self: QueryMixinHost) -> None:
         """Delete selected lines."""
         from sqlit.domains.query.editing import MotionType, Position, Range, operator_delete
-        from textual.widgets.text_area import Selection
-
         self._push_undo_state()
 
         start_row, end_row = self._get_visual_line_range()
@@ -143,8 +138,7 @@ class QueryEditingVisualLineMixin:
         from sqlit.core.vim import VimMode
 
         self.vim_mode = VimMode.NORMAL
-        cursor = self.query_input.cursor_location
-        self.query_input.selection = Selection(cursor, cursor)
+        self._set_normal_selection()
         self._update_vim_mode_visuals()
         self._update_footer_bindings()
 
@@ -189,10 +183,8 @@ class QueryEditingVisualLineMixin:
         self._visual_line_anchor_row = None
 
         from sqlit.core.vim import VimMode
-        from textual.widgets.text_area import Selection
-
         self.vim_mode = VimMode.NORMAL
         cursor = self.query_input.cursor_location
-        self.query_input.selection = Selection(cursor, cursor)
+        self._set_normal_selection(cursor)
         self._update_vim_mode_visuals()
         self._update_footer_bindings()

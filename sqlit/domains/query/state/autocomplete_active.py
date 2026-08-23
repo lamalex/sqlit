@@ -29,6 +29,7 @@ class AutocompleteActiveState(State):
             "focus_explorer",
             "focus_results",
             "leader_key",
+            "window_leader_key",
             "new_connection",
             "show_help",
         )

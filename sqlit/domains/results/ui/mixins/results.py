@@ -321,12 +321,29 @@ class ResultsMixin:
                     except Exception:
                         table = None
 
-                columns = list(getattr(section, "result_columns", [])) if section else []
-                rows = list(getattr(section, "result_rows", [])) if section else []
+                has_table_data = bool(table and getattr(table, "result_data_attached", False))
+                columns = list(getattr(table, "result_columns", [])) if has_table_data else []
+                rows = list(getattr(table, "result_raw_rows", [])) if has_table_data else []
+                if not has_table_data and section:
+                    columns = list(getattr(section, "result_columns", []))
+                    rows = list(getattr(section, "result_rows", []))
                 return table, columns, rows, True
             except Exception:
                 return None, [], [], True
-        return self.results_table, list(self._last_result_columns), list(self._last_result_rows), False
+        table = self.results_table
+        if getattr(table, "result_data_attached", False):
+            return (
+                table,
+                list(table.result_columns),
+                list(table.result_raw_rows),
+                False,
+            )
+        return (
+            table,
+            list(self._last_result_columns),
+            list(self._last_result_rows),
+            False,
+        )
 
     def _find_results_section(self: ResultsMixinHost, widget: Any) -> Any | None:
         """Find the ResultSection ancestor for a widget."""
@@ -570,6 +587,73 @@ class ResultsMixin:
             return
         self._copy_text(str(value) if value is not None else "NULL")
         self._flash_table_yank(table, "cell")
+
+    def action_enter_results_selection(self: ResultsMixinHost) -> None:
+        """Start or collapse a rectangular results selection."""
+        table, _columns, _rows, _stacked = self._get_active_results_context()
+        if not table or table.row_count <= 0:
+            return
+        table.begin_results_rectangle()
+        self._update_footer_bindings()
+
+    def action_select_results_rows(self: ResultsMixinHost) -> None:
+        """Select the current row, extending down when repeated."""
+        table, _columns, _rows, _stacked = self._get_active_results_context()
+        if not table or table.row_count <= 0:
+            return
+        table.begin_results_rows()
+        self._update_footer_bindings()
+
+    def action_collapse_results_selection(self: ResultsMixinHost) -> None:
+        """Collapse the active results selection to its logical head."""
+        table, _columns, _rows, _stacked = self._get_active_results_context()
+        if table:
+            table.collapse_results_selection()
+        self._update_footer_bindings()
+
+    def action_yank_results_selection(self: ResultsMixinHost) -> None:
+        """Copy the active cell, rectangle, or row selection as TSV."""
+        table, _columns, rows, _stacked = self._get_active_results_context()
+        if not table or table.row_count <= 0:
+            self.notify("No results", severity="warning")
+            return
+        min_row, max_row, min_col, max_col = table.results_selection_bounds()
+        selected_rows = [
+            tuple(row[min_col : max_col + 1])
+            for row in rows[min_row : max_row + 1]
+        ]
+        if not selected_rows:
+            return
+        if len(selected_rows) == 1 and len(selected_rows[0]) == 1:
+            value = selected_rows[0][0]
+            text = str(value) if value is not None else "NULL"
+        else:
+            text = self._format_tsv([], selected_rows)
+        self._copy_text(text)
+        self.notify(
+            f"Copied {len(selected_rows)} row(s), {max_col - min_col + 1} column(s)"
+        )
+
+    def _results_selection_bounds(
+        self: ResultsMixinHost, table: Any
+    ) -> tuple[int, int, int, int]:
+        if hasattr(table, "results_selection_bounds"):
+            return table.results_selection_bounds()
+        row, column = table.cursor_coordinate
+        return row, row, column, column
+
+    def _results_row_values(
+        self: ResultsMixinHost,
+        table: Any,
+        rows: list[tuple],
+        row_index: int,
+    ) -> list[Any]:
+        if row_index < len(rows):
+            return list(rows[row_index])
+        return [
+            _strip_table_markup(table, value)
+            for value in table.get_row_at(row_index)
+        ]
 
     def _show_cell_tooltip(
         self: ResultsMixinHost,
@@ -1004,31 +1088,47 @@ class ResultsMixin:
         self.notify(f"Copied {len(values)} values from '{columns[col_idx]}'")
 
     def action_results_cursor_left(self: ResultsMixinHost) -> None:
-        """Move results cursor left (vim h)."""
+        """Move results cursor or selection head left."""
         table, _columns, _rows, _stacked = self._get_active_results_context()
         if table and table.has_focus:
-            table.action_cursor_left()
+            if table.results_selection_active:
+                table.move_results_selection(column_delta=-1)
+                self._update_footer_bindings()
+            else:
+                table.action_cursor_left()
 
     def action_results_cursor_down(self: ResultsMixinHost) -> None:
-        """Move results cursor down (vim j)."""
+        """Move results cursor or selection head down."""
         table, _columns, _rows, _stacked = self._get_active_results_context()
         if table and table.has_focus:
-            table.action_cursor_down()
+            if table.results_selection_active:
+                table.move_results_selection(row_delta=1)
+                self._update_footer_bindings()
+            else:
+                table.action_cursor_down()
 
     def action_results_cursor_up(self: ResultsMixinHost) -> None:
-        """Move results cursor up (vim k)."""
+        """Move results cursor or selection head up."""
         table, _columns, _rows, _stacked = self._get_active_results_context()
         if table and table.has_focus:
-            table.action_cursor_up()
+            if table.results_selection_active:
+                table.move_results_selection(row_delta=-1)
+                self._update_footer_bindings()
+            else:
+                table.action_cursor_up()
 
     def action_results_cursor_right(self: ResultsMixinHost) -> None:
-        """Move results cursor right (vim l)."""
+        """Move results cursor or selection head right."""
         table, _columns, _rows, _stacked = self._get_active_results_context()
         if table and table.has_focus:
-            table.action_cursor_right()
+            if table.results_selection_active:
+                table.move_results_selection(column_delta=1)
+                self._update_footer_bindings()
+            else:
+                table.action_cursor_right()
 
     def action_rg_leader_key(self: ResultsMixinHost) -> None:
-        """Show the results g motion leader menu (first press of gg)."""
+        """Show the results goto menu."""
         self._start_leader_pending("rg")
 
     def _move_results_cursor_row(self: ResultsMixinHost, target_row: int) -> None:
@@ -1044,14 +1144,33 @@ class ResultsMixin:
             current_col = 0
         target_row = max(0, min(target_row, table.row_count - 1))
         try:
-            table.cursor_coordinate = Coordinate(row=target_row, column=current_col)
+            if table.results_selection_active:
+                table.set_results_selection_head(row=target_row)
+                self._update_footer_bindings()
+            else:
+                table.cursor_coordinate = Coordinate(row=target_row, column=current_col)
         except Exception:
             pass
 
     def action_rg_first_row(self: ResultsMixinHost) -> None:
-        """Jump to the first row (vim gg). Column is preserved."""
+        """Jump to the first row (gg). Column is preserved."""
         self._clear_leader_pending()
         self._move_results_cursor_row(0)
+
+    def action_rg_last_row(self: ResultsMixinHost) -> None:
+        """Jump to the last row (ge). Column is preserved."""
+        self._clear_leader_pending()
+        self.action_results_cursor_last_row()
+
+    def action_rg_first_column(self: ResultsMixinHost) -> None:
+        """Jump to the first column (gh). Row is preserved."""
+        self._clear_leader_pending()
+        self.action_results_cursor_first_column()
+
+    def action_rg_last_column(self: ResultsMixinHost) -> None:
+        """Jump to the last column (gl). Row is preserved."""
+        self._clear_leader_pending()
+        self.action_results_cursor_last_column()
 
     def action_results_cursor_last_row(self: ResultsMixinHost) -> None:
         """Jump to the last row (vim G). Column is preserved."""
@@ -1084,16 +1203,24 @@ class ResultsMixin:
         self._move_results_cursor_row(current_row + page)
 
     def action_results_cursor_first_column(self: ResultsMixinHost) -> None:
-        """Move cursor to the first column of the current row (vim 0)."""
+        """Move cursor or selection head to the first column."""
         table, _columns, _rows, _stacked = self._get_active_results_context()
         if table and table.row_count > 0:
-            table.action_cursor_row_start()
+            if table.results_selection_active:
+                table.set_results_selection_head(column=0)
+                self._update_footer_bindings()
+            else:
+                table.action_cursor_row_start()
 
     def action_results_cursor_last_column(self: ResultsMixinHost) -> None:
-        """Move cursor to the last column of the current row (vim $)."""
+        """Move cursor or selection head to the last column."""
         table, _columns, _rows, _stacked = self._get_active_results_context()
         if table and table.row_count > 0:
-            table.action_cursor_row_end()
+            if table.results_selection_active:
+                table.set_results_selection_head(column=table.column_count - 1)
+                self._update_footer_bindings()
+            else:
+                table.action_cursor_row_end()
 
     def action_results_column_picker(self: ResultsMixinHost) -> None:
         """Open a filterable column picker; jump cursor to the selected column (vim f/F)."""
@@ -1114,7 +1241,11 @@ class ResultsMixin:
             except Exception:
                 current_row = 0
             try:
-                table.cursor_coordinate = Coordinate(row=current_row, column=column_index)
+                if table.results_selection_active:
+                    table.set_results_selection_head(column=column_index)
+                    self._update_footer_bindings()
+                else:
+                    table.cursor_coordinate = Coordinate(row=current_row, column=column_index)
             except Exception:
                 pass
 
@@ -1359,7 +1490,7 @@ class ResultsMixin:
 
     def action_delete_row(self: ResultsMixinHost) -> None:
         """Generate a DELETE query for the selected row and enter insert mode."""
-        table, columns, _rows, _stacked = self._get_active_results_context()
+        table, columns, rows, _stacked = self._get_active_results_context()
         if not table or table.row_count <= 0:
             self.notify("No results", severity="warning")
             return
@@ -1368,11 +1499,14 @@ class ResultsMixin:
             self.notify("No column info", severity="warning")
             return
 
+        min_row, max_row, _min_col, _max_col = self._results_selection_bounds(table)
+        if min_row != max_row:
+            self.notify("DELETE requires a single selected row", severity="warning")
+            return
+
         try:
-            cursor_row, _cursor_col = table.cursor_coordinate
-            row_values = [
-                _strip_table_markup(table, v) for v in table.get_row_at(cursor_row)
-            ]
+            cursor_row = min_row
+            row_values = self._results_row_values(table, rows, cursor_row)
         except Exception:
             return
 
@@ -1442,6 +1576,8 @@ class ResultsMixin:
                 self.query_input.text = query
             cursor_pos = max(len(query) - 1, 0)
             self.query_input.cursor_location = (0, cursor_pos)
+            if hasattr(table, "collapse_results_selection"):
+                table.collapse_results_selection()
             self.action_focus_query()
             self._update_footer_bindings()
 
@@ -1455,7 +1591,7 @@ class ResultsMixin:
 
     def action_edit_cell(self: ResultsMixinHost) -> None:
         """Generate an UPDATE query for the selected cell and enter insert mode."""
-        table, columns, _rows, _stacked = self._get_active_results_context()
+        table, columns, rows, _stacked = self._get_active_results_context()
         if not table or table.row_count <= 0:
             self.notify("No results", severity="warning")
             return
@@ -1464,11 +1600,14 @@ class ResultsMixin:
             self.notify("No column info", severity="warning")
             return
 
+        min_row, max_row, min_col, max_col = self._results_selection_bounds(table)
+        if min_row != max_row or min_col != max_col:
+            self.notify("UPDATE requires a single selected cell", severity="warning")
+            return
+
         try:
-            cursor_row, cursor_col = table.cursor_coordinate
-            row_values = [
-                _strip_table_markup(table, v) for v in table.get_row_at(cursor_row)
-            ]
+            cursor_row, cursor_col = min_row, min_col
+            row_values = self._results_row_values(table, rows, cursor_row)
         except Exception:
             return
 
@@ -1549,6 +1688,8 @@ class ResultsMixin:
                 load_unsaved(query)
             else:
                 self.query_input.text = query
+            if hasattr(table, "collapse_results_selection"):
+                table.collapse_results_selection()
             self.query_input.focus()
             self.query_input.cursor_location = (0, cursor_pos)
 
@@ -1573,6 +1714,9 @@ class ResultsMixin:
         """Navigate to the next result section (for multi-statement results)."""
         from sqlit.shared.ui.widgets_stacked_results import ResultSection, StackedResultsContainer
 
+        table, _columns, _rows, _stacked = self._get_active_results_context()
+        if table:
+            table.collapse_results_selection()
         try:
             container = self.query_one("#stacked-results", StackedResultsContainer)
         except Exception:
@@ -1598,6 +1742,9 @@ class ResultsMixin:
         """Navigate to the previous result section (for multi-statement results)."""
         from sqlit.shared.ui.widgets_stacked_results import ResultSection, StackedResultsContainer
 
+        table, _columns, _rows, _stacked = self._get_active_results_context()
+        if table:
+            table.collapse_results_selection()
         try:
             container = self.query_one("#stacked-results", StackedResultsContainer)
         except Exception:
@@ -1623,6 +1770,9 @@ class ResultsMixin:
         """Toggle collapse/expand of the current result section."""
         from sqlit.shared.ui.widgets_stacked_results import ResultSection, StackedResultsContainer
 
+        table, _columns, _rows, _stacked = self._get_active_results_context()
+        if table:
+            table.collapse_results_selection()
         try:
             container = self.query_one("#stacked-results", StackedResultsContainer)
         except Exception:

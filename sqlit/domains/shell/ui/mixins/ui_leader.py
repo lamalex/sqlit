@@ -17,6 +17,10 @@ class UILeaderMixin:
         """Handle leader key (space) press - show command menu after delay."""
         self._start_leader_pending("leader")
 
+    def action_window_leader_key(self: UINavigationMixinHost) -> None:
+        """Enter Helix-style window navigation mode."""
+        self._start_leader_pending("window")
+
     def action_delete_leader_key(self: UINavigationMixinHost) -> None:
         """Handle delete leader key (d) press - show delete menu after delay."""
         self._start_leader_pending("delete")
@@ -118,6 +122,12 @@ class UILeaderMixin:
     def action_leader_format_query(self: UINavigationMixinHost) -> None:
         self._execute_leader_command("format_query")
 
+    def action_leader_execute_query_atomic(self: UINavigationMixinHost) -> None:
+        self._execute_leader_command("execute_query_atomic")
+
+    def action_leader_execute_single_statement(self: UINavigationMixinHost) -> None:
+        self._execute_leader_command("execute_single_statement")
+
     def action_leader_toggle_process_worker(self: UINavigationMixinHost) -> None:
         self._execute_leader_command("toggle_process_worker")
 
@@ -135,3 +145,22 @@ class UILeaderMixin:
 
     def action_leader_quit(self: UINavigationMixinHost) -> None:
         self._execute_leader_command("quit")
+
+    def action_window_left(self: UINavigationMixinHost) -> None:
+        self._cancel_leader_pending()
+        self.action_focus_explorer()
+
+    def action_window_up(self: UINavigationMixinHost) -> None:
+        self._cancel_leader_pending()
+        self.action_focus_query()
+
+    def action_window_down(self: UINavigationMixinHost) -> None:
+        self._cancel_leader_pending()
+        self.action_focus_results()
+
+    def action_window_right(self: UINavigationMixinHost) -> None:
+        self._cancel_leader_pending()
+        if getattr(self, "_last_right_pane", "query") == "results":
+            self.action_focus_results()
+        else:
+            self.action_focus_query()

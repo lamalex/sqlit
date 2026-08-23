@@ -28,7 +28,8 @@ class TestDialogKeybindings:
     async def test_normal_actions_blocked_when_error_dialog_open(self):
         """Normal navigation/actions should be blocked when an error dialog is open."""
         keymap = get_keymap()
-        focus_query_key = keymap.action("focus_query")
+        window_key = keymap.action("window_leader_key")
+        focus_query_key = keymap.leader("up", "window")
 
         app = _make_app()
 
@@ -47,7 +48,7 @@ class TestDialogKeybindings:
             assert has_error
 
             # Try to focus query - should be blocked by modal
-            await pilot.press(focus_query_key)
+            await pilot.press(window_key, focus_query_key)
             await pilot.pause()
 
             # Explorer should still have focus (action was blocked)
@@ -196,7 +197,8 @@ class TestDialogKeybindings:
     async def test_help_dialog_blocks_normal_actions(self):
         """Help dialog should block normal actions like focus changes."""
         keymap = get_keymap()
-        focus_explorer_key = keymap.action("focus_explorer")
+        window_key = keymap.action("window_leader_key")
+        focus_explorer_key = keymap.leader("left", "window")
 
         app = _make_app()
 
@@ -215,7 +217,7 @@ class TestDialogKeybindings:
             assert any(isinstance(screen, HelpScreen) for screen in app.screen_stack)
 
             # Try to focus explorer - should be blocked
-            await pilot.press(focus_explorer_key)
+            await pilot.press(window_key, focus_explorer_key)
             await pilot.pause()
 
             # Help screen should still be open

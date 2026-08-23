@@ -34,7 +34,7 @@ class TestLeaderKeybindings:
 
         async with app.run_test(size=(100, 35)) as pilot:
             # Press leader and connection key quickly - must complete
-            # before the 200ms timer expires and shows the menu
+            # before the 350ms timer expires and shows the menu
             await pilot.press(leader_key, connection_key)
             await pilot.pause()
 
@@ -52,7 +52,7 @@ class TestLeaderKeybindings:
 
         async with app.run_test(size=(100, 35)) as pilot:
             # Press leader and help key quickly - must complete
-            # before the 200ms timer expires and shows the menu
+            # before the 350ms timer expires and shows the menu
             await pilot.press(leader_key, help_key)
             await pilot.pause()
 
@@ -74,3 +74,21 @@ class TestLeaderKeybindings:
 
             has_picker = any(isinstance(screen, ConnectionPickerScreen) for screen in app.screen_stack)
             assert not has_picker
+
+    @pytest.mark.asyncio
+    async def test_invalid_continuation_is_not_replayed(self):
+        """An invalid sequence must not become a command in the parent context."""
+        keymap = get_keymap()
+        leader_key = keymap.action("leader_key")
+
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_explorer()
+            await pilot.pause()
+
+            await pilot.press(leader_key, "r")
+            await pilot.pause()
+
+            assert app.object_tree.has_focus
+            assert app._leader_pending is False

@@ -64,11 +64,159 @@ class SqlitDataTable(FastDataTable):
     # Track if a manual tooltip is being shown (via 'v' key)
     _manual_tooltip_active: bool = False
 
+    results_selection_mode: str = "cell"
+    results_selection_anchor: Coordinate | None = None
+    results_selection_head: Coordinate | None = None
+    result_columns: list[str]
+    result_raw_rows: list[tuple[Any, ...]]
+    result_data_attached: bool
+    _syncing_results_selection: bool
+
     def __init__(self, *, data: Any | None = None, **kwargs: Any) -> None:
         super().__init__(data=_stringify_uuid_data(data), **kwargs)
+        self.result_columns = []
+        self.result_raw_rows = []
+        self.result_data_attached = False
+        self._syncing_results_selection = False
 
     def add_rows(self, rows: Iterable[Iterable[Any]]) -> list[int]:
         return super().add_rows(_stringify_uuid_rows(rows))
+
+    def watch_cursor_coordinate(
+        self, old_coordinate: Coordinate, new_coordinate: Coordinate
+    ) -> None:
+        """Keep logical selection state aligned with mouse and native movement."""
+        super().watch_cursor_coordinate(old_coordinate, new_coordinate)
+        if self._syncing_results_selection:
+            return
+        if self.results_selection_active:
+            self.results_selection_mode = "cell"
+            self.cursor_type = "cell"
+            self.selection_anchor_coordinate = None
+        self.results_selection_anchor = None
+        self.results_selection_head = None
+        self._notify_results_selection_changed()
+
+    @property
+    def results_selection_active(self) -> bool:
+        return self.results_selection_mode != "cell"
+
+    def set_result_data(self, columns: list[str], rows: list[tuple[Any, ...]]) -> None:
+        """Attach canonical values for selection operations."""
+        self.result_columns = list(columns)
+        self.result_raw_rows = list(rows)
+        self.result_data_attached = True
+
+    def begin_results_rectangle(self) -> None:
+        """Start a rectangular selection at the current cell."""
+        if self.row_count <= 0 or self.column_count <= 0:
+            return
+        if self.results_selection_mode == "rectangle":
+            self.collapse_results_selection()
+            return
+        coordinate = self.results_selection_head or self.cursor_coordinate
+        self.results_selection_mode = "rectangle"
+        self.results_selection_anchor = coordinate
+        self.results_selection_head = coordinate
+        self._sync_results_selection()
+
+    def begin_results_rows(self) -> None:
+        """Select the current row, or extend an existing row selection down."""
+        if self.row_count <= 0 or self.column_count <= 0:
+            return
+        if self.results_selection_mode == "rows":
+            self.move_results_selection(row_delta=1)
+            return
+        coordinate = self.results_selection_head or self.cursor_coordinate
+        self.results_selection_mode = "rows"
+        self.results_selection_anchor = coordinate
+        self.results_selection_head = coordinate
+        self._sync_results_selection()
+
+    def move_results_selection(self, *, row_delta: int = 0, column_delta: int = 0) -> None:
+        """Move the logical selection head, clamped to the table bounds."""
+        if not self.results_selection_active:
+            return
+        head = self.results_selection_head or self.cursor_coordinate
+        row = min(max(head.row + row_delta, 0), self.row_count - 1)
+        column = min(max(head.column + column_delta, 0), self.column_count - 1)
+        if self.results_selection_mode == "rows":
+            column = head.column
+        self.results_selection_head = Coordinate(row, column)
+        self._sync_results_selection()
+
+    def set_results_selection_head(
+        self, *, row: int | None = None, column: int | None = None
+    ) -> None:
+        """Move the logical selection head to an absolute coordinate."""
+        if not self.results_selection_active:
+            self.move_cursor(row=row, column=column)
+            return
+        head = self.results_selection_head or self.cursor_coordinate
+        target_row = head.row if row is None else min(max(row, 0), self.row_count - 1)
+        target_column = (
+            head.column
+            if column is None or self.results_selection_mode == "rows"
+            else min(max(column, 0), self.column_count - 1)
+        )
+        self.results_selection_head = Coordinate(target_row, target_column)
+        self._sync_results_selection()
+
+    def collapse_results_selection(self) -> None:
+        """Collapse an active selection to its logical head cell."""
+        head = self.results_selection_head or self.cursor_coordinate
+        self.results_selection_mode = "cell"
+        self.results_selection_anchor = None
+        self.results_selection_head = None
+        self.cursor_type = "cell"
+        self.selection_anchor_coordinate = None
+        self.cursor_coordinate = head
+        self.refresh()
+
+    def results_selection_bounds(self) -> tuple[int, int, int, int]:
+        """Return inclusive row and column bounds for the current selection."""
+        if not self.results_selection_active:
+            row, column = self.cursor_coordinate
+            return row, row, column, column
+        anchor = self.results_selection_anchor or self.cursor_coordinate
+        head = self.results_selection_head or self.cursor_coordinate
+        min_row, max_row = sorted((anchor.row, head.row))
+        if self.results_selection_mode == "rows":
+            return min_row, max_row, 0, max(0, self.column_count - 1)
+        min_column, max_column = sorted((anchor.column, head.column))
+        return min_row, max_row, min_column, max_column
+
+    def _sync_results_selection(self) -> None:
+        anchor = self.results_selection_anchor
+        head = self.results_selection_head
+        if anchor is None or head is None:
+            return
+        self.cursor_type = "range"
+        if self.results_selection_mode == "rows":
+            if head.row >= anchor.row:
+                visual_anchor = Coordinate(anchor.row, 0)
+                visual_head = Coordinate(head.row, self.column_count - 1)
+            else:
+                visual_anchor = Coordinate(anchor.row, self.column_count - 1)
+                visual_head = Coordinate(head.row, 0)
+        else:
+            visual_anchor = anchor
+            visual_head = head
+        self._syncing_results_selection = True
+        try:
+            self.selection_anchor_coordinate = visual_anchor
+            self.cursor_coordinate = visual_head
+        finally:
+            self._syncing_results_selection = False
+        self.refresh()
+
+    def _notify_results_selection_changed(self) -> None:
+        try:
+            update = getattr(self.app, "_update_footer_bindings", None)
+            if callable(update):
+                update()
+        except Exception:
+            pass
 
     def _set_tooltip_from_cell_at(self, coordinate: Any) -> None:
         """Override to disable hover tooltips entirely."""

@@ -9,6 +9,13 @@ from sqlit.shared.ui.protocols import QueryMixinHost
 class QueryEditingOperatorsMixin:
     """Delete/yank/change operator actions for the query editor."""
 
+    def action_delete_leader_key(self: QueryMixinHost) -> None:
+        """Delete the current selection."""
+        self._clear_count_buffer()
+        if not self._has_selection():
+            self._set_normal_selection()
+        self._delete_selection()
+
     def action_delete_line(self: QueryMixinHost) -> None:
         """Delete the current line (dd), with count support for multi-line delete."""
         self._clear_leader_pending()
@@ -245,6 +252,7 @@ class QueryEditingOperatorsMixin:
         op_result = operator_delete(text, final_range)
         self.query_input.text = op_result.text
         self.query_input.cursor_location = (op_result.row, op_result.col)
+        self._set_normal_selection()
 
         # Copy deleted text to system clipboard
         if op_result.yanked:
@@ -267,6 +275,7 @@ class QueryEditingOperatorsMixin:
         op_result = operator_delete(text, range_obj)
         self.query_input.text = op_result.text
         self.query_input.cursor_location = (op_result.row, op_result.col)
+        self._set_normal_selection()
 
         # Copy deleted text to system clipboard
         if op_result.yanked:
@@ -277,15 +286,11 @@ class QueryEditingOperatorsMixin:
     # ========================================================================
 
     def action_yank_leader_key(self: QueryMixinHost) -> None:
-        """Handle yank key - selection-aware.
-
-        If there's a selection, yank it immediately.
-        Otherwise, show the yank leader menu.
-        """
-        if self._has_selection():
-            self._yank_selection()
-        else:
-            self._start_leader_pending("yank")
+        """Copy the current selection."""
+        self._clear_count_buffer()
+        if not self._has_selection():
+            self._set_normal_selection()
+        self._yank_selection()
 
     def action_yank_line(self: QueryMixinHost) -> None:
         """Yank the current line (yy)."""
@@ -499,15 +504,12 @@ class QueryEditingOperatorsMixin:
     # ========================================================================
 
     def action_change_leader_key(self: QueryMixinHost) -> None:
-        """Handle change key - selection-aware.
-
-        If there's a selection, change it immediately (delete + insert mode).
-        Otherwise, show the change leader menu.
-        """
+        """Change the current selection and enter INSERT mode."""
+        self._clear_count_buffer()
+        if not self._has_selection():
+            self._set_normal_selection()
         if self._has_selection():
             self._change_selection()
-        else:
-            self._start_leader_pending("change")
 
     def _enter_insert_mode(self: QueryMixinHost) -> None:
         """Enter INSERT mode."""
@@ -737,3 +739,4 @@ class QueryEditingOperatorsMixin:
         self._push_undo_state()
         self.query_input.text = result.text
         self.query_input.cursor_location = (max(0, result.row), max(0, result.col))
+        self._set_normal_selection()

@@ -21,6 +21,7 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
     _notification_timer: Timer | None = None
     _leader_timer: Timer | None = None
     _last_active_pane: str | None = None
+    _last_right_pane: str = "query"
 
     def _set_fullscreen_mode(self: UINavigationMixinHost, mode: str) -> None:
         """Set fullscreen mode: none|explorer|query|results."""
@@ -54,16 +55,26 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
         """Focus the Query pane (in NORMAL mode)."""
         from sqlit.core.vim import VimMode
 
+        tracked_cursor = getattr(self, "_normal_cursor", None)
+        tracked_textual_cursor = getattr(self, "_normal_textual_cursor", None)
+        cursor = (
+            tracked_cursor
+            if self.query_input.cursor_location == tracked_textual_cursor
+            else self.query_input.cursor_location
+        )
         self._clear_count_buffer()  # Clear any pending count prefix
         if self._fullscreen_mode != "none":
             self._set_fullscreen_mode("none")
         self.vim_mode = VimMode.NORMAL
+        self._last_right_pane = "query"
         self.query_input.read_only = True
         self.query_input.focus()
+        self._set_normal_selection(cursor)
         self._update_vim_mode_visuals()
 
     def action_focus_results(self: UINavigationMixinHost) -> None:
         """Focus the Results pane."""
+        self._last_right_pane = "results"
         self._clear_count_buffer()  # Clear any pending count prefix
         if self._fullscreen_mode != "none":
             self._set_fullscreen_mode("none")
@@ -95,6 +106,10 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
         from sqlit.core.vim import VimMode
 
         if self.query_input.has_focus and self.vim_mode == VimMode.NORMAL:
+            from textual.widgets.text_area import Selection
+
+            start, _ = self._ordered_selection(self.query_input.selection)
+            self.query_input.selection = Selection(start, start)
             self.vim_mode = VimMode.INSERT
             self.query_input.read_only = False
             self._update_vim_mode_visuals()
@@ -109,6 +124,7 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
             self.vim_mode = VimMode.NORMAL
             self.query_input.read_only = True
             self._hide_autocomplete()
+            self._set_normal_selection()
             self._update_vim_mode_visuals()
             self._update_footer_bindings()
 
@@ -228,6 +244,7 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
             self.vim_mode = VimMode.NORMAL
             try:
                 self.query_input.read_only = True
+                self._set_normal_selection()
             except Exception:
                 pass
         self._update_footer_bindings()

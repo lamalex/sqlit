@@ -36,10 +36,24 @@ class QueryStateProtocol(Protocol):
     _results_render_worker: Worker[Any] | None
     _results_render_token: int
     _query_document: Any | None
+    _last_query_search: str
+    _last_query_search_direction: int
 
 
 class QueryActionsProtocol(Protocol):
     _history_store: Any | None
+
+    def action_query_search(self) -> None:
+        ...
+
+    def action_query_search_next(self) -> None:
+        ...
+
+    def action_query_search_previous(self) -> None:
+        ...
+
+    def _query_logical_head(self) -> tuple[int, int]:
+        ...
 
     def action_execute_query(self) -> None:
         ...
@@ -185,6 +199,26 @@ class QueryActionsProtocol(Protocol):
         ...
 
     def _has_selection(self) -> bool:
+        ...
+
+    def _set_normal_selection(self, position: tuple[int, int] | None = None) -> None:
+        ...
+
+    def _set_normal_motion_selection(
+        self,
+        origin: tuple[int, int],
+        destination: tuple[int, int],
+        motion_key: str,
+    ) -> SqlitDataTable:
+        ...
+
+    def _position_after(self, position: tuple[int, int]) -> tuple[int, int]:
+        ...
+
+    def _position_before(self, position: tuple[int, int]) -> tuple[int, int]:
+        ...
+
+    def _show_select_text_object_menu(self, *, around: bool) -> None:
         ...
 
     def _ordered_selection(self, selection: Any) -> tuple[tuple[int, int], tuple[int, int]]:

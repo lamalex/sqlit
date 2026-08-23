@@ -30,7 +30,7 @@ Supports all major databases: SQL Server, PostgreSQL, MySQL, SQLite, MariaDB, Fi
 ![Database Providers](docs/demos/demo-providers.gif)
 
 ### Query
-Syntax highlighting. History. Vim-style keybindings.
+Syntax highlighting. History. Helix-style modal keybindings.
 
 ![Query History](docs/demos/demo-history.gif)
 
@@ -62,7 +62,7 @@ Automatically finds running database containers. Press 'Enter' to connect, sqlit
 
 **Secure credentials:** Passwords stored in your OS keyring
 
-**Vim-style editing:** Modal editing for terminal purists
+**Helix-style editing:** Selection-first modal editing for terminal purists
 
 **Query history:** Searchable, per-connection history
 
@@ -79,6 +79,8 @@ Automatically finds running database containers. Press 'Enter' to connect, sqlit
 **Themes:** Rose Pine, Tokyo Night, Nord, Gruvbox
 
 **Dependency wizard:** Auto-install missing drivers
+
+**Roadmap:** Follow the [Helix SQL editor roadmap](docs/roadmap.md) for structural editing, syntax analysis, SQL-native workflows, and optional language-server integration.
 
 ---
 
@@ -191,29 +193,41 @@ sqlit connections delete "MyConnection"
 
 | Key | Action |
 |-----|--------|
-| `i` | Enter INSERT mode |
-| `Esc` | Back to NORMAL mode |
-| `e` / `q` / `r` | Focus Explorer / Query / Results |
-| `s` | SELECT TOP 100 from table |
-| `h` | Query history |
-| `d` | Clear query |
-| `n` | New query (clear all) |
-| `y` | Copy query (when query editor is focused) |
-| `v` / `y` / `Y` / `a` | View cell / Copy cell / Copy row / Copy all |
-| `Ctrl+Q` | Quit |
+| Query: `i` / `a` | Insert before / after selection |
+| Query: `Enter` | Execute query or selected text |
+| Query: `v` / `x` | Character / line selection mode |
+| Query: `y` / `d` / `c` | Copy / delete / change selection |
+| Query: `/`, then `n/N` | Search, next match / previous match |
+| Query: `Ctrl+n` | New query |
+| Results: `h/j/k/l` | Navigate cells |
+| Results: `gg/ge` | Go to first / last row |
+| Results: `gh/gl` | Go to first / last column |
+| Results: `v/x` | Select a rectangle / complete rows |
+| Results: `y` / `;` | Copy / collapse selection |
+| Results: `r` / `d` | Generate UPDATE / DELETE for a safe selection |
+| Results: `V` / `Ctrl+v` | View full value / preview tooltip |
+| Results: `Yc/Yy/Ya` | Copy cell / row / all results |
+| Results: `X` | Clear results |
+| `Ctrl+w h/k/j/l` | Navigate Explorer / Query / Results panes |
 | `?` | Help |
 
-### Vim Motions (Query Editor, NORMAL mode)
+### Modal Editing (Query Editor, NORMAL mode)
 
-Use with operators like `y`, `d`, `c` (e.g. `dw`, `y$`).
+Use `v` to extend a character selection or `x` to select complete lines, then `y`, `d`, or `c` to operate on it.
+
+Use `mi{object}` or `ma{object}` to select inside or around a text object, and `;` to collapse a selection. Surround the current selection with `ms{char}`, remove its nearest enclosing pair with `md{char}`, or replace that pair with `mr{old}{new}`. Brackets, quotes, backticks, and the `b`/`B` aliases are supported.
 
 | Motion | Action |
 |--------|--------|
 | `h` / `j` / `k` / `l` | Move cursor left / down / up / right |
 | `w` / `W` | Next word / WORD |
 | `b` / `B` | Previous word / WORD |
+| `e` / `E` | Next word / WORD end |
 | `0` / `$` | Line start / end |
-| `gg` / `G` | File start / end |
+| `gg` / `ge` | File start / end |
+| `gh` / `gl` | Line start / end |
+| `gs` | First non-whitespace |
+| `r{c}` | Replace selection with character |
 | `f{c}` / `F{c}` | Find char forward / backward |
 | `t{c}` / `T{c}` | Till char forward / backward |
 | `%` | Matching bracket |

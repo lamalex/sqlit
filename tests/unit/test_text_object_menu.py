@@ -47,3 +47,8 @@ class TestTextObjectMenuTitle:
         screen = TextObjectMenuScreen(mode="inner", operator="change")
         assert screen._mode == "inner"
         assert screen._operator == "change"
+
+    def test_select_inner_uses_selection_context(self) -> None:
+        screen = TextObjectMenuScreen(mode="inner", operator="select")
+        assert screen._mode == "inner"
+        assert screen._operator == "select"

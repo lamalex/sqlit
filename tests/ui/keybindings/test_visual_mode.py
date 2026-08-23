@@ -56,6 +56,45 @@ class TestEnterExitVisualMode:
             assert app.vim_mode == VimMode.VISUAL_LINE
 
     @pytest.mark.asyncio
+    async def test_x_selects_current_line(self) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            await pilot.pause()
+
+            app.query_input.text = SAMPLE_TEXT
+            app.query_input.cursor_location = (1, 2)
+            await pilot.pause()
+
+            await pilot.press("x")
+            await pilot.pause()
+
+            assert app.vim_mode == VimMode.VISUAL_LINE
+            start, end = app._ordered_selection(app.query_input.selection)
+            assert start == (1, 0)
+            assert end == (1, len("  foo,"))
+
+    @pytest.mark.asyncio
+    async def test_repeated_x_extends_line_selection(self) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            await pilot.pause()
+
+            app.query_input.text = SAMPLE_TEXT
+            app.query_input.cursor_location = (1, 2)
+            await pilot.pause()
+
+            await pilot.press("x", "x")
+            await pilot.pause()
+
+            start, end = app._ordered_selection(app.query_input.selection)
+            assert start == (1, 0)
+            assert end == (2, len("  bar,"))
+
+    @pytest.mark.asyncio
     async def test_escape_exits_visual_mode(self) -> None:
         app = _make_app()
 
@@ -112,6 +151,50 @@ class TestEnterExitVisualMode:
             await pilot.press("v")
             await pilot.pause()
             assert app.vim_mode == VimMode.NORMAL
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("start,motion", [((0, 0), "w"), ((0, 6), "b")])
+    async def test_v_preserves_existing_normal_selection(
+        self, start: tuple[int, int], motion: str
+    ) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "hello world"
+            app._set_normal_selection(start)
+            await pilot.press(motion)
+            before = app._ordered_selection(app.query_input.selection)
+
+            await pilot.press("v")
+            await pilot.pause()
+
+            assert app.vim_mode == VimMode.VISUAL
+            assert app._ordered_selection(app.query_input.selection) == before
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("start", "motion", "expected"),
+        [((0, 0), "w", (0, 6)), ((0, 6), "b", (0, 0))],
+    )
+    async def test_visual_exit_collapses_to_logical_head(
+        self,
+        start: tuple[int, int],
+        motion: str,
+        expected: tuple[int, int],
+    ) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "hello world"
+            app._set_normal_selection(start)
+
+            await pilot.press("v", motion, "escape")
+            await pilot.pause()
+
+            assert app.vim_mode == VimMode.NORMAL
+            assert app._normal_cursor == expected
 
     @pytest.mark.asyncio
     async def test_V_exits_visual_line_mode(self) -> None:
@@ -360,6 +443,23 @@ class TestVisualModeOperators:
             assert app.query_input.text == "SELECT * FROM users WHERE active = true"
 
     @pytest.mark.asyncio
+    async def test_normal_p_inserts_after_selection_without_replacing_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        app = _make_app()
+        monkeypatch.setattr("sqlit.shared.ui.clipboard.get_system_clipboard_text", lambda: "")
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "hello world"
+            app._internal_clipboard = "SQL "
+            app._set_normal_selection((0, 0))
+            await pilot.press("w", "p")
+            await pilot.pause()
+
+            assert app.query_input.text == "hello SQL world"
+
+    @pytest.mark.asyncio
     async def test_visual_delete(self) -> None:
         app = _make_app()
 
@@ -495,3 +595,30 @@ class TestVisualModeOperators:
 
             assert app.vim_mode == VimMode.INSERT
             assert app.query_input.text == "alpha\ngamma"
+
+
+class TestSelectionExecution:
+    @pytest.mark.asyncio
+    async def test_normal_primary_selection_executes_full_query(self) -> None:
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)):
+            app.action_focus_query()
+            app.query_input.text = "SELECT 1"
+            app._set_normal_selection((0, 0))
+
+            assert app._get_query_to_execute() == "SELECT 1"
+
+    @pytest.mark.asyncio
+    async def test_select_mode_executes_selected_query(self) -> None:
+        from textual.widgets.text_area import Selection
+
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)):
+            app.action_focus_query()
+            app.query_input.text = "SELECT 1; SELECT 2"
+            app.vim_mode = VimMode.VISUAL
+            app.query_input.selection = Selection((0, 0), (0, 8))
+
+            assert app._get_query_to_execute() == "SELECT 1"

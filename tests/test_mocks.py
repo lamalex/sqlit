@@ -124,11 +124,47 @@ class TestMockIntegration:
     def test_query_columns_match_table_columns(self):
         profile = get_mock_profile("sqlite-demo")
         adapter = profile.get_adapter("sqlite")
+        conn = adapter.connect(profile.connections[0])
 
-        table_cols = {c.name for c in adapter.get_columns(MockConnection(), "users")}
-        query_cols, _, _ = adapter.execute_query(MockConnection(), "SELECT * FROM users")
+        table_cols = {c.name for c in adapter.get_columns(conn, "users")}
+        query_cols, _, _ = adapter.execute_query(conn, "SELECT * FROM users")
 
         assert set(query_cols) == table_cols
+
+    def test_sqlite_demo_executes_cte_and_limit(self):
+        profile = get_mock_profile("sqlite-demo")
+        adapter = profile.get_adapter("sqlite")
+        conn = adapter.connect(profile.connections[0])
+
+        columns, rows, truncated = adapter.execute_query(
+            conn,
+            'WITH cte AS (SELECT * FROM "main"."users" LIMIT 100) '
+            "SELECT * FROM cte LIMIT 1",
+        )
+
+        assert columns == ["id", "name", "email", "created_at"]
+        assert rows == [(1, "Alice Johnson", "alice@example.com", "2024-01-15")]
+        assert truncated is False
+
+    def test_sqlite_demo_rejects_invalid_sql(self):
+        import sqlite3
+
+        import pytest
+
+        profile = get_mock_profile("sqlite-demo")
+        adapter = profile.get_adapter("sqlite")
+        conn = adapter.connect(profile.connections[0])
+
+        with pytest.raises(sqlite3.OperationalError):
+            adapter.execute_query(conn, 'SELECT * FROM "main"."main"."users"')
+
+    def test_sqlite_demo_builds_sqlite_qualified_query(self):
+        profile = get_mock_profile("sqlite-demo")
+        adapter = profile.get_adapter("sqlite")
+
+        assert adapter.build_select_query("users", 100, "main", "main") == (
+            'SELECT * FROM "users" LIMIT 100'
+        )
 
 
 class TestAdapterInterfaceCompliance:

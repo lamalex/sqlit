@@ -132,8 +132,10 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
 
     def _get_query_to_execute(self: QueryMixinHost) -> str:
         """Return selected text if present, otherwise the full query."""
+        from sqlit.core.vim import VimMode
+
         selection = self.query_input.selection
-        if selection.start != selection.end:
+        if self.vim_mode != VimMode.NORMAL and selection.start != selection.end:
             from sqlit.domains.query.editing import get_selection_text
 
             start = selection.start
@@ -753,11 +755,13 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
     def action_clear_query(self: QueryMixinHost) -> None:
         """Clear the query input."""
         self.query_input.text = ""
+        self._set_normal_selection((0, 0))
 
     def action_new_query(self: QueryMixinHost) -> None:
         """Start a new query (clear input and results)."""
         def start_new_query() -> None:
             self.query_input.text = ""
+            self._set_normal_selection((0, 0))
             try:
                 self._replace_results_table([], [])
             except NoMatches:
@@ -782,7 +786,7 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
         # Save current query's cursor position before switching
         current_query = self.query_input.text
         if current_query:
-            cursor_cache[current_query] = self.query_input.cursor_location
+            cursor_cache[current_query] = self._query_logical_head()
 
         # Set new query text
         self.query_input.text = query
@@ -795,6 +799,8 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
             last_line = len(lines) - 1
             last_col = len(lines[-1]) if lines else 0
             self.query_input.cursor_location = (last_line, last_col)
+
+        self._set_normal_selection()
 
         # Focus query input - this triggers on_descendant_focus which updates footer bindings
         self.query_input.focus()

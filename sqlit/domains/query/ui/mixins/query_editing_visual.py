@@ -15,24 +15,37 @@ class QueryEditingVisualMixin:
         """Enter charwise visual mode (v)."""
         from sqlit.core.vim import VimMode
 
-        cursor = self.query_input.cursor_location
-        self._visual_anchor = cursor
+        selection = self.query_input.selection
+        start, end = self._ordered_selection(selection)
+        tracked_cursor = getattr(self, "_normal_cursor", None)
+        tracked_textual_cursor = getattr(self, "_normal_textual_cursor", None)
+        cursor = (
+            tracked_cursor
+            if self.query_input.cursor_location == tracked_textual_cursor
+            else self.query_input.cursor_location
+        )
+        if start == end:
+            anchor = cursor
+        elif cursor <= start:
+            anchor = self._position_before(end)
+        else:
+            anchor = start
+
+        self._visual_anchor = anchor
         self._visual_cursor = cursor
         self.vim_mode = VimMode.VISUAL
-        self._update_query_visual_selection(cursor=cursor)
         self._update_vim_mode_visuals()
         self._update_footer_bindings()
 
     def action_exit_visual_mode(self: QueryMixinHost) -> None:
         """Exit visual mode back to normal."""
         from sqlit.core.vim import VimMode
-        from textual.widgets.text_area import Selection
 
+        cursor = self._visual_cursor or self.query_input.cursor_location
         self._visual_anchor = None
         self._visual_cursor = None
         self.vim_mode = VimMode.NORMAL
-        cursor = self.query_input.cursor_location
-        self.query_input.selection = Selection(cursor, cursor)
+        self._set_normal_selection(cursor)
         self._update_vim_mode_visuals()
         self._update_footer_bindings()
 
@@ -137,6 +150,7 @@ class QueryEditingVisualMixin:
         from sqlit.core.vim import VimMode
 
         self.vim_mode = VimMode.NORMAL
+        self._set_normal_selection()
         self._update_vim_mode_visuals()
         self._update_footer_bindings()
 
@@ -157,10 +171,8 @@ class QueryEditingVisualMixin:
         self._visual_cursor = None
 
         from sqlit.core.vim import VimMode
-        from textual.widgets.text_area import Selection
-
         self.vim_mode = VimMode.NORMAL
         cursor = self.query_input.cursor_location
-        self.query_input.selection = Selection(cursor, cursor)
+        self._set_normal_selection(cursor)
         self._update_vim_mode_visuals()
         self._update_footer_bindings()

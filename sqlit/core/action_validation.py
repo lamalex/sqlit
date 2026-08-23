@@ -29,7 +29,7 @@ def validate_actions(app: Any) -> list[str]:
         if not hasattr(app, action_name):
             missing.add(action_name)
 
-    for menu in ("leader", "delete", "yank", "change"):
+    for menu in ("leader", "match", "g", "rg", "window"):
         for cmd in get_leader_commands(menu):
             action_name = f"action_{cmd.binding_action}"
             if not hasattr(app, action_name):

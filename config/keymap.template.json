@@ -3,6 +3,7 @@
     "action_keys": {
       "global": {
         "leader_key": "space",
+        "window_leader_key": "ctrl+w",
         "cancel_operation": "escape",
         "show_help": "?",
         "enter_command_mode": [
@@ -11,11 +12,6 @@
         ],
         "undo": "ctrl+z",
         "redo": "ctrl+y"
-      },
-      "navigation": {
-        "focus_explorer": "e",
-        "focus_query": "q",
-        "focus_results": "r"
       },
       "tree": {
         "new_connection": "n",
@@ -69,9 +65,17 @@
         "paste": "p",
         "yank_leader_key": "y",
         "change_leader_key": "c",
+        "match_leader_key": "m",
+        "collapse_selection": [
+          "semicolon",
+          ";"
+        ],
         "g_leader_key": "g",
         "show_history": "backspace",
-        "new_query": "N",
+        "new_query": "ctrl+n",
+        "query_search": "/",
+        "query_search_next": "n",
+        "query_search_previous": "N",
         "delete_leader_key": "d",
         "change_line_end_motion": "C",
         "delete_line_end": "D",
@@ -85,6 +89,8 @@
         "cursor_WORD_forward": "W",
         "cursor_word_back": "b",
         "cursor_WORD_back": "B",
+        "cursor_word_end": "e",
+        "cursor_WORD_end": "E",
         "cursor_line_start": "0",
         "cursor_first_non_blank": "^",
         "cursor_line_end": "$",
@@ -95,10 +101,13 @@
         "cursor_till_char": "t",
         "cursor_till_char_back": "T",
         "enter_visual_mode": "v",
-        "enter_visual_line_mode": "V",
-        "delete_char": "x",
+        "enter_visual_line_mode": [
+          "x",
+          "V"
+        ],
         "append_insert_mode": "a",
-        "append_line_end": "A"
+        "append_line_end": "A",
+        "replace_selection": "r"
       },
       "query_insert": {
         "exit_insert_mode": "escape",
@@ -112,14 +121,15 @@
           "escape",
           "v"
         ],
-        "switch_to_visual_line_mode": "V",
-        "visual_yank": "y",
-        "visual_delete": [
-          "d",
-          "x"
+        "switch_to_visual_line_mode": [
+          "x",
+          "V"
         ],
+        "visual_yank": "y",
+        "visual_delete": "d",
         "visual_change": "c",
         "visual_execute": "enter",
+        "match_leader_key": "m",
         "cursor_left": [
           "h",
           "left"
@@ -158,13 +168,12 @@
         ],
         "switch_to_visual_mode": "v",
         "visual_line_yank": "y",
-        "visual_line_delete": [
-          "d",
-          "x"
-        ],
+        "visual_line_delete": "d",
         "visual_line_change": "c",
+        "match_leader_key": "m",
         "cursor_down": [
           "j",
+          "x",
           "down"
         ],
         "cursor_up": [
@@ -188,12 +197,23 @@
         "autocomplete_close": "escape"
       },
       "results": {
-        "view_cell": "v",
+        "enter_results_selection": "v",
         "view_cell_full": "V",
-        "edit_cell": "u",
+        "view_cell": "ctrl+v",
+        "edit_cell": [
+          "r",
+          "u"
+        ],
         "delete_row": "d",
-        "results_yank_leader_key": "y",
-        "clear_results": "x",
+        "yank_results_selection": "y",
+        "results_yank_leader_key": "Y",
+        "select_results_rows": "x",
+        "clear_results": "X",
+        "collapse_results_selection": [
+          "semicolon",
+          ";",
+          "escape"
+        ],
         "results_filter": "/",
         "results_cursor_left": "h",
         "results_cursor_down": "j",
@@ -246,90 +266,35 @@
         "change_theme": "t",
         "edit_query_in_editor": "o",
         "format_query": "p",
+        "query_library": "q",
+        "save_query": "w",
+        "save_query_as": "S",
+        "execute_query_atomic": "r",
+        "execute_single_statement": "s",
         "show_help": "h",
         "telescope": "space",
         "telescope_filter": "/"
       },
-      "delete": {
-        "line": "d",
-        "word": "w",
-        "WORD": "W",
-        "word_back": "b",
-        "WORD_back": "B",
-        "word_end": "e",
-        "WORD_end": "E",
-        "line_start": "0",
-        "line_end_motion": "$",
-        "line_end": "D",
-        "char": "x",
-        "char_back": "X",
-        "left": "h",
-        "down": "j",
-        "up": "k",
-        "right": "l",
-        "to_end": "G",
-        "find_char": "f",
-        "find_char_back": "F",
-        "till_char": "t",
-        "till_char_back": "T",
-        "matching_bracket": "%",
+      "match": {
         "inner": "i",
-        "around": "a"
+        "around": "a",
+        "surround_add": "s",
+        "surround_delete": "d",
+        "surround_replace": "r"
       },
-      "yank": {
-        "line": "y",
-        "word": "w",
-        "WORD": "W",
-        "word_back": "b",
-        "WORD_back": "B",
-        "word_end": "e",
-        "WORD_end": "E",
-        "line_start": "0",
-        "line_end_motion": "$",
+      "window": {
         "left": "h",
-        "down": "j",
         "up": "k",
-        "right": "l",
-        "to_end": "G",
-        "find_char": "f",
-        "find_char_back": "F",
-        "till_char": "t",
-        "till_char_back": "T",
-        "matching_bracket": "%",
-        "inner": "i",
-        "around": "a"
-      },
-      "change": {
-        "line": "c",
-        "word": "w",
-        "WORD": "W",
-        "word_back": "b",
-        "WORD_back": "B",
-        "word_end": "e",
-        "WORD_end": "E",
-        "line_start": "0",
-        "line_end_motion": "$",
-        "left": "h",
         "down": "j",
-        "up": "k",
-        "right": "l",
-        "to_end": "G",
-        "find_char": "f",
-        "find_char_back": "F",
-        "till_char": "t",
-        "till_char_back": "T",
-        "matching_bracket": "%",
-        "inner": "i",
-        "around": "a"
+        "right": "l"
       },
       "g": {
         "first_line": "g",
-        "word_end_back": "e",
-        "WORD_end_back": "E",
-        "comment": "c",
-        "execute_query": "r",
-        "execute_single_statement": "s",
-        "execute_query_atomic": "t"
+        "last_line": "e",
+        "line_start": "h",
+        "line_end": "l",
+        "first_non_blank": "s",
+        "comment": "c"
       },
       "gc": {
         "line": "c",
@@ -350,7 +315,10 @@
         "json": "j"
       },
       "rg": {
-        "first_row": "g"
+        "first_row": "g",
+        "last_row": "e",
+        "first_column": "h",
+        "last_column": "l"
       },
       "vy": {
         "value": "y",

@@ -17,11 +17,21 @@ class QueryNormalModeState(State):
         self.allows("enter_insert_mode", label="Insert Mode", help="Enter INSERT mode")
         self.allows("execute_query", label="Execute", help="Execute query")
         self.allows("execute_single_statement", label="Run Statement", help="Execute statement at cursor")
-        self.allows("delete_leader_key", label="Delete", help="Delete (menu)")
-        self.allows("yank_leader_key", label="Copy", help="Copy (menu)")
-        self.allows("change_leader_key", label="Change", help="Change (menu)")
+        self.allows("delete_leader_key", label="Delete", help="Delete selection")
+        self.allows("yank_leader_key", label="Copy", help="Copy selection")
+        self.allows("change_leader_key", label="Change", help="Change selection")
+        self.allows(
+            "match_leader_key",
+            label="Match",
+            help="Select text objects or edit surrounds",
+        )
+        self.allows("collapse_selection", label="Collapse", help="Collapse selection to its head")
+        self.allows("replace_selection", label="Replace", help="Replace selection with a character")
         self.allows("g_leader_key", label="Go", help="Go motions (menu)")
         self.allows("new_query", label="New", help="New query (clear all)")
+        self.allows("query_search", label="Search", help="Search query text")
+        self.allows("query_search_next", help="Next search match")
+        self.allows("query_search_previous", help="Previous search match")
         self.allows("show_history", label="History", help="Query history")
         self.allows(
             "edit_query_in_editor",
@@ -80,9 +90,9 @@ class QueryNormalModeState(State):
         # Undo/redo
         self.allows("undo", help="Undo")
         self.allows("redo", help="Redo")
-        # Visual modes
-        self.allows("enter_visual_mode", label="Visual", help="Enter visual mode")
-        self.allows("enter_visual_line_mode", label="Visual Line", help="Enter visual line mode")
+        # Selection modes
+        self.allows("enter_visual_mode", label="Select", help="Enter select mode")
+        self.allows("enter_visual_line_mode", label="Select Line", help="Select current line")
 
     def get_display_bindings(self, app: InputContext) -> tuple[list[DisplayBinding], list[DisplayBinding]]:
         left: list[DisplayBinding] = []
@@ -137,7 +147,7 @@ class QueryNormalModeState(State):
         seen.add("show_history")
         left.append(
             DisplayBinding(
-                key=resolve_display_key("new_query") or "N",
+                key=resolve_display_key("new_query") or "ctrl+n",
                 label="New",
                 action="new_query",
             )

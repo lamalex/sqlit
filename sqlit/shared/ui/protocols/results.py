@@ -39,6 +39,18 @@ class ResultsStateProtocol(Protocol):
 
 
 class ResultsActionsProtocol(Protocol):
+    def action_enter_results_selection(self) -> None:
+        ...
+
+    def action_select_results_rows(self) -> None:
+        ...
+
+    def action_collapse_results_selection(self) -> None:
+        ...
+
+    def action_yank_results_selection(self) -> None:
+        ...
+
     def _copy_text(self, text: str) -> bool:
         ...
 
@@ -48,10 +60,14 @@ class ResultsActionsProtocol(Protocol):
     def _format_tsv(self, columns: list[str], rows: list[tuple[Any, ...]]) -> str:
         ...
 
-    def _replace_results_table(self, columns: list[str], rows: list[tuple[Any, ...]]) -> None:
+    def _replace_results_table(
+        self, columns: list[str], rows: list[tuple[Any, ...]]
+    ) -> SqlitDataTable:
         ...
 
-    def _replace_results_table_raw(self, columns: list[str], rows: list[tuple[Any, ...]]) -> None:
+    def _replace_results_table_raw(
+        self, columns: list[str], rows: list[tuple[Any, ...]]
+    ) -> SqlitDataTable:
         ...
 
     def _restore_results_table(self) -> None:
@@ -100,8 +116,12 @@ class ResultsActionsProtocol(Protocol):
         ...
 
     def _replace_results_table_raw_for_filter(
-        self, columns: list[str], rows: list[tuple[Any, ...]]
-    ) -> None:
+        self,
+        columns: list[str],
+        rows: list[tuple[Any, ...]],
+        *,
+        raw_rows: list[tuple[Any, ...]] | None = None,
+    ) -> SqlitDataTable | None:
         ...
 
     def _replace_results_table_for_filter(
@@ -155,7 +175,12 @@ class ResultsActionsProtocol(Protocol):
         ...
 
     def _replace_results_section_table(
-        self, columns: list[str], rows: list[tuple[Any, ...]], *, escape: bool
+        self,
+        columns: list[str],
+        rows: list[tuple[Any, ...]],
+        *,
+        escape: bool,
+        raw_rows: list[tuple[Any, ...]] | None = None,
     ) -> None:
         ...
 

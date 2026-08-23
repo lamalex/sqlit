@@ -7,15 +7,14 @@ from typing import Any, cast
 
 from sqlit.domains.connections.domain.config import ConnectionConfig
 from sqlit.domains.connections.providers.adapter_provider import AdapterConfigValidator
+from sqlit.domains.connections.providers.adapters.base import DatabaseAdapter
 from sqlit.domains.connections.providers.catalog import get_provider, get_provider_schema, get_provider_spec
 from sqlit.domains.connections.providers.explorer_nodes import DefaultExplorerNodeProvider
 from sqlit.domains.connections.providers.model import DatabaseProvider, ProviderMetadata, SchemaCapabilities
 from sqlit.domains.connections.providers.schema_helpers import ConnectionSchema
 
-from .mock_adapter_core import MockDatabaseAdapter
 
-
-def build_mock_provider(db_type: str, adapter: MockDatabaseAdapter) -> DatabaseProvider:
+def build_mock_provider(db_type: str, adapter: DatabaseAdapter) -> DatabaseProvider:
     real_provider: DatabaseProvider | None
     try:
         real_provider = get_provider(db_type)

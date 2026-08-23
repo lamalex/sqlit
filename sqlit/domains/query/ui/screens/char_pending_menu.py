@@ -48,6 +48,7 @@ class CharPendingMenuScreen(ModalScreen[str | None]):
             "F": ("Find char back", "Delete to previous occurrence of char"),
             "t": ("Till char", "Delete till before next char"),
             "T": ("Till char back", "Delete till after previous char"),
+            "r": ("Replace selection", "Replace selected characters"),
         }.get(self._motion, ("Char", "Delete to char"))
 
         title, desc = motion_desc

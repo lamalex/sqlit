@@ -10,6 +10,8 @@ from .editor_picker import EditorPickerScreen
 from .query_history import QueryHistoryScreen
 from .query_library import QueryLibraryScreen
 from .saved_query_name import SavedQueryNameScreen
+from .query_search import QuerySearchScreen
+from .surround_menu import SurroundMenuScreen
 from .text_object_menu import TextObjectMenuScreen
 
 __all__ = [
@@ -20,6 +22,8 @@ __all__ = [
     "QueryHistoryScreen",
     "SavedQueryOverwriteScreen",
     "SavedQueryNameScreen",
+    "QuerySearchScreen",
+    "SurroundMenuScreen",
     "TextObjectMenuScreen",
     "UnsavedQueryChangesScreen",
 ]

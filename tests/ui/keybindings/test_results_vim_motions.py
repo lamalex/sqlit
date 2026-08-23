@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from sqlit.core.keymap import get_keymap
 from sqlit.domains.shell.app.main import SSMSTUI
 
 from ..mocks import MockConnectionStore, MockSettingsStore, build_test_services
@@ -83,6 +84,64 @@ class TestResultsVimMotions:
 
             assert app.results_table.cursor_coordinate.row == 0
             assert app.results_table.cursor_coordinate.column == 2
+
+    @pytest.mark.asyncio
+    async def test_ge_jumps_to_last_row_preserving_column(self) -> None:
+        app = _make_app()
+        async with app.run_test(size=(100, 35)) as pilot:
+            columns = ["id", "name", "email"]
+            rows = [(i, f"row-{i}", f"e{i}@x") for i in range(20)]
+            await _populate_results(pilot, app, columns, rows)
+
+            await pilot.press("l", "g", "e")
+            await pilot.pause()
+
+            assert app.results_table.cursor_coordinate.row == len(rows) - 1
+            assert app.results_table.cursor_coordinate.column == 1
+
+    @pytest.mark.asyncio
+    async def test_gh_and_gl_jump_to_column_boundaries_preserving_row(self) -> None:
+        app = _make_app()
+        async with app.run_test(size=(100, 35)) as pilot:
+            columns = ["a", "b", "c", "d", "e"]
+            rows = [(1, 2, 3, 4, 5), (6, 7, 8, 9, 10)]
+            await _populate_results(pilot, app, columns, rows)
+
+            await pilot.press("j", "g", "l")
+            await pilot.pause()
+            assert app.results_table.cursor_coordinate.row == 1
+            assert app.results_table.cursor_coordinate.column == len(columns) - 1
+
+            await pilot.press("g", "h")
+            await pilot.pause()
+            assert app.results_table.cursor_coordinate.row == 1
+            assert app.results_table.cursor_coordinate.column == 0
+
+    @pytest.mark.asyncio
+    async def test_invalid_g_continuation_is_not_replayed(self) -> None:
+        app = _make_app()
+        async with app.run_test(size=(100, 35)) as pilot:
+            await _populate_results(pilot, app, ["id"], [(1,), (2,)])
+            delete_called = False
+
+            def mock_delete() -> None:
+                nonlocal delete_called
+                delete_called = True
+
+            app.action_delete_row = mock_delete
+            await pilot.press("g", "d")
+            await pilot.pause()
+
+            assert not delete_called
+            assert app._leader_pending is False
+
+    def test_default_results_goto_keymap(self) -> None:
+        keymap = get_keymap()
+
+        assert keymap.leader("first_row", "rg") == "g"
+        assert keymap.leader("last_row", "rg") == "e"
+        assert keymap.leader("first_column", "rg") == "h"
+        assert keymap.leader("last_column", "rg") == "l"
 
     @pytest.mark.asyncio
     async def test_ctrl_d_and_ctrl_u_page_preserve_column(self) -> None:

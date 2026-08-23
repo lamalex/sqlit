@@ -34,8 +34,8 @@ class TestKeymapProvider:
 
         # Verify action keys exist (don't check specific keys)
         assert keymap.action("new_connection") is not None
-        assert keymap.action("focus_query") is not None
-        assert keymap.action("focus_explorer") is not None
+        assert keymap.action("window_leader_key") == "ctrl+w"
+        assert keymap.leader("left", "window") == "h"
 
     def test_custom_keymap_can_be_set(self):
         """Custom keymap provider can be injected."""

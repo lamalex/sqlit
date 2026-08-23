@@ -10,14 +10,14 @@ from sqlit.core.vim import VimMode
 class QueryVisualLineModeState(State):
     """Query editor in VISUAL LINE mode (V)."""
 
-    help_category = "Query Editor (Visual Line)"
+    help_category = "Query Editor (Select Line)"
     keymap_context = "query_visual_line"
 
     def _setup_actions(self) -> None:
         self.allows(
             "exit_visual_line_mode",
-            label="Exit Visual",
-            help="Exit visual line mode",
+            label="Normal Mode",
+            help="Return to normal mode",
         )
         # Block entering visual line mode when already in it
         self.forbids("enter_visual_line_mode")
@@ -31,8 +31,8 @@ class QueryVisualLineModeState(State):
         # Visual line operators
         self.allows(
             "visual_line_yank",
-            label="Yank",
-            help="Yank selected lines",
+            label="Copy",
+            help="Copy selected lines",
         )
         self.allows(
             "visual_line_delete",
@@ -44,6 +44,7 @@ class QueryVisualLineModeState(State):
             label="Change",
             help="Change selected lines",
         )
+        self.allows("match_leader_key", label="Match", help="Edit selection surrounds")
         # Execute selected lines
         self.allows(
             "visual_line_execute",
@@ -64,7 +65,7 @@ class QueryVisualLineModeState(State):
         left.append(
             DisplayBinding(
                 key=resolve_display_key("exit_visual_line_mode") or "<esc>",
-                label="Exit Visual",
+                label="Normal Mode",
                 action="exit_visual_line_mode",
             )
         )
@@ -72,7 +73,7 @@ class QueryVisualLineModeState(State):
         left.append(
             DisplayBinding(
                 key=resolve_display_key("visual_line_yank") or "y",
-                label="Yank",
+                label="Copy",
                 action="visual_line_yank",
             )
         )

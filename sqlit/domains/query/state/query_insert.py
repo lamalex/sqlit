@@ -32,6 +32,7 @@ class QueryInsertModeState(State):
             "focus_explorer",
             "focus_results",
             "leader_key",
+            "window_leader_key",
             "new_connection",
             "show_help",
             "enter_command_mode",

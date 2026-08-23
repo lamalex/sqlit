@@ -27,7 +27,8 @@ class TestContextualKeybindings:
     async def test_focus_explorer_key_when_query_focused(self):
         """Focus explorer key should focus explorer when query panel is focused."""
         keymap = get_keymap()
-        focus_explorer_key = keymap.action("focus_explorer")
+        window_key = keymap.action("window_leader_key")
+        focus_explorer_key = keymap.leader("left", "window")
 
         app = _make_app()
 
@@ -38,7 +39,7 @@ class TestContextualKeybindings:
             assert app.query_input.has_focus
 
             # Press focus explorer key
-            await pilot.press(focus_explorer_key)
+            await pilot.press(window_key, focus_explorer_key)
             await pilot.pause()
 
             assert app.object_tree.has_focus
@@ -47,7 +48,8 @@ class TestContextualKeybindings:
     async def test_focus_query_key_when_explorer_focused(self):
         """Focus query key should focus query when explorer is focused."""
         keymap = get_keymap()
-        focus_query_key = keymap.action("focus_query")
+        window_key = keymap.action("window_leader_key")
+        focus_query_key = keymap.leader("up", "window")
 
         app = _make_app()
 
@@ -58,10 +60,63 @@ class TestContextualKeybindings:
             assert app.object_tree.has_focus
 
             # Press focus query key
-            await pilot.press(focus_query_key)
+            await pilot.press(window_key, focus_query_key)
             await pilot.pause()
 
             assert app.query_input.has_focus
+
+    @pytest.mark.asyncio
+    async def test_window_down_focuses_results(self):
+        keymap = get_keymap()
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            await pilot.press(
+                keymap.action("window_leader_key"),
+                keymap.leader("down", "window"),
+            )
+            await pilot.pause()
+
+            assert app.results_table.has_focus
+
+    @pytest.mark.asyncio
+    async def test_window_right_returns_to_last_right_pane(self):
+        keymap = get_keymap()
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_results()
+            app.action_focus_explorer()
+            await pilot.press(
+                keymap.action("window_leader_key"),
+                keymap.leader("right", "window"),
+            )
+            await pilot.pause()
+
+            assert app.results_table.has_focus
+
+    @pytest.mark.asyncio
+    async def test_window_round_trip_preserves_word_end_head(self):
+        keymap = get_keymap()
+        app = _make_app()
+
+        async with app.run_test(size=(100, 35)) as pilot:
+            app.action_focus_query()
+            app.query_input.text = "hello world"
+            app._set_normal_selection((0, 0))
+            await pilot.press("e")
+
+            await pilot.press(
+                keymap.action("window_leader_key"),
+                keymap.leader("left", "window"),
+                keymap.action("window_leader_key"),
+                keymap.leader("up", "window"),
+            )
+            await pilot.pause()
+
+            start, end = app._ordered_selection(app.query_input.selection)
+            assert app.query_input.text[start[1] : end[1]] == "o"
 
     @pytest.mark.asyncio
     async def test_edit_connection_blocked_when_query_focused(self):
@@ -89,7 +144,7 @@ class TestContextualKeybindings:
 
             app.action_edit_connection = mock_edit
 
-            # Press edit key - should focus explorer (since e is also focus_explorer), not edit connection
+            # Query-local e must not trigger the Explorer's edit action.
             await pilot.press(edit_key)
             await pilot.pause()
 

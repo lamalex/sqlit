@@ -19,13 +19,17 @@ RESULTS_RENDER_INITIAL_ROWS = 20
 class QueryResultsMixin:
     """Mixin providing results rendering for queries."""
 
-    def _replace_results_table(self: QueryMixinHost, columns: list[str], rows: list[tuple]) -> None:
+    def _replace_results_table(
+        self: QueryMixinHost, columns: list[str], rows: list[tuple]
+    ) -> SqlitDataTable:
         """Update the results table with escaped data."""
-        self._replace_results_table_with_data(columns, rows, escape=True)
+        return self._replace_results_table_with_data(columns, rows, escape=True)
 
-    def _replace_results_table_raw(self: QueryMixinHost, columns: list[str], rows: list[tuple]) -> None:
+    def _replace_results_table_raw(
+        self: QueryMixinHost, columns: list[str], rows: list[tuple]
+    ) -> SqlitDataTable:
         """Update the results table with pre-formatted data (no escaping)."""
-        self._replace_results_table_with_data(columns, rows, escape=False)
+        return self._replace_results_table_with_data(columns, rows, escape=False)
 
     def _replace_results_table_with_data(
         self: QueryMixinHost,
@@ -33,7 +37,7 @@ class QueryResultsMixin:
         rows: list[tuple],
         *,
         escape: bool,
-    ) -> None:
+    ) -> SqlitDataTable:
         """Replace the results table with new data."""
         self._cancel_results_render()
         container = self.results_area
@@ -44,6 +48,7 @@ class QueryResultsMixin:
         old_table.remove()
         if was_focused:
             new_table.focus()
+        return new_table
 
     def _build_results_table(
         self: QueryMixinHost,
@@ -58,11 +63,13 @@ class QueryResultsMixin:
         new_id = f"results-table-{self._results_table_counter}"
 
         if not columns:
-            return SqlitDataTable(id=new_id, zebra_stripes=True, show_header=False)
+            table = SqlitDataTable(id=new_id, zebra_stripes=True, show_header=False)
+            table.set_result_data([], [])
+            return table
 
         render_markup = not escape
         if backend is not None:
-            return SqlitDataTable(
+            table = SqlitDataTable(
                 id=new_id,
                 zebra_stripes=True,
                 backend=backend,
@@ -71,6 +78,8 @@ class QueryResultsMixin:
                 render_markup=render_markup,
                 null_rep="NULL",
             )
+            table.set_result_data(columns, rows)
+            return table
 
         render_rows = rows[:MAX_RENDER_ROWS] if rows else []
         if not render_rows:
@@ -86,7 +95,7 @@ class QueryResultsMixin:
                     names=list(columns),
                 )
             )
-            return SqlitDataTable(
+            table = SqlitDataTable(
                 id=new_id,
                 zebra_stripes=True,
                 backend=empty_backend,
@@ -95,7 +104,9 @@ class QueryResultsMixin:
                 render_markup=render_markup,
                 null_rep="NULL",
             )
-        return SqlitDataTable(
+            table.set_result_data(columns, [])
+            return table
+        table = SqlitDataTable(
             id=new_id,
             zebra_stripes=True,
             data=render_rows,
@@ -104,6 +115,8 @@ class QueryResultsMixin:
             render_markup=render_markup,
             null_rep="NULL",
         )
+        table.set_result_data(columns, render_rows)
+        return table
 
     def _get_decimal_column_types(self: QueryMixinHost, rows: list[tuple]) -> dict[int, Any]:
         from decimal import Decimal
@@ -194,7 +207,8 @@ class QueryResultsMixin:
             end = min(index + RESULTS_RENDER_CHUNK_SIZE, total)
             if end <= index:
                 return
-            batch = rows[index:end]
+            raw_batch = rows[index:end]
+            batch = raw_batch
             if coerce_to_str_columns:
                 coerced: list[tuple] = []
                 for row in batch:
@@ -208,6 +222,7 @@ class QueryResultsMixin:
                 batch = coerced
             try:
                 table.add_rows(batch)
+                table.result_raw_rows.extend(raw_batch)
             except Exception as exc:
                 # Fall back to full render if incremental append fails (e.g., Arrow schema mismatch).
                 try:

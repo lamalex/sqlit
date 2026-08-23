@@ -68,6 +68,23 @@ class TestLifecycle:
         manager = KeymapManager(settings_store=MockSettingsStore({}))
         manager.initialize()
         assert manager.load_error is None
+
+    def test_previous_default_new_query_binding_is_migrated(self, tmp_path: Path):
+        manager = _load(
+            tmp_path,
+            "legacy-new-query",
+            {
+                "keymap": {
+                    "action_keys": {
+                        "query_normal": {"new_query": "N"},
+                    }
+                }
+            },
+        )
+
+        assert manager.load_error is None
+        assert get_keymap().action("new_query") == "ctrl+n"
+        assert get_keymap().action("query_search_previous") == "N"
         assert get_keymap().action("enter_insert_mode") == "i"
 
     def test_unknown_settings_are_ignored(self):
@@ -488,8 +505,8 @@ class TestStartupNotification:
     """The load error is surfaced to the user via app.notify on startup."""
 
     def test_notifies_when_load_error_present(self):
-        from sqlit.domains.shell.app.startup_flow import _warn_on_keymap_error
         from sqlit.domains.shell.app import keymap_manager as km_mod
+        from sqlit.domains.shell.app.startup_flow import _warn_on_keymap_error
 
         km_mod.DEFAULT_KEYMAP_FILE.parent.mkdir(parents=True, exist_ok=True)
         km_mod.DEFAULT_KEYMAP_FILE.write_text("not valid json", encoding="utf-8")

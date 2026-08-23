@@ -26,8 +26,14 @@ class QueryEditingCursorMixin:
 
         if self.vim_mode == _VM.VISUAL and getattr(self, "_visual_cursor", None) is not None:
             row, col = self._visual_cursor
+        elif (
+            self.vim_mode == _VM.NORMAL
+            and self._has_selection()
+        ):
+            row, col = self._query_logical_head()
         else:
             row, col = self.query_input.cursor_location
+        origin = (row, col)
 
         # Apply motion `count` times
         for _ in range(count):
@@ -47,7 +53,7 @@ class QueryEditingCursorMixin:
         elif self.vim_mode == VimMode.VISUAL and hasattr(self, "_update_query_visual_selection"):
             self._update_query_visual_selection(cursor=(row, col))
         else:
-            self.query_input.cursor_location = (row, col)
+            self._set_normal_motion_selection(origin, (row, col), motion_key)
 
     def action_g_leader_key(self: QueryMixinHost) -> None:
         """Show the g motion leader menu."""
@@ -72,32 +78,27 @@ class QueryEditingCursorMixin:
         elif self.vim_mode == VimMode.VISUAL and hasattr(self, "_update_query_visual_selection"):
             self._update_query_visual_selection(cursor=(target_row, 0))
         else:
-            self.query_input.cursor_location = (target_row, 0)
+            self._set_normal_selection((target_row, 0))
 
-    def action_g_word_end_back(self: QueryMixinHost) -> None:
-        """Go to end of previous word (ge)."""
+    def action_g_last_line(self: QueryMixinHost) -> None:
+        """Go to the last line (ge)."""
         self._clear_leader_pending()
-        self._move_with_motion("ge")
+        self._move_with_motion("G")
 
-    def action_g_WORD_end_back(self: QueryMixinHost) -> None:
-        """Go to end of previous WORD (gE)."""
+    def action_g_line_start(self: QueryMixinHost) -> None:
+        """Go to the start of the current line (gh)."""
         self._clear_leader_pending()
-        self._move_with_motion("gE")
+        self._move_with_motion("0")
 
-    def action_g_execute_single_statement(self: QueryMixinHost) -> None:
-        """Execute single statement at cursor via g menu (gs)."""
+    def action_g_line_end(self: QueryMixinHost) -> None:
+        """Go to the end of the current line (gl)."""
         self._clear_leader_pending()
-        self.action_execute_single_statement()
+        self._move_with_motion("$")
 
-    def action_g_execute_query(self: QueryMixinHost) -> None:
-        """Execute query via g menu (gr)."""
+    def action_g_first_non_blank(self: QueryMixinHost) -> None:
+        """Go to the first non-whitespace character (gs)."""
         self._clear_leader_pending()
-        self.action_execute_query()
-
-    def action_g_execute_query_atomic(self: QueryMixinHost) -> None:
-        """Execute query as transaction via g menu (gt)."""
-        self._clear_leader_pending()
-        self.action_execute_query_atomic()
+        self._move_with_motion("^")
 
     def action_cursor_left(self: QueryMixinHost) -> None:
         """Move cursor left (h in normal mode), with count support."""
@@ -167,7 +168,7 @@ class QueryEditingCursorMixin:
             elif self.vim_mode == VimMode.VISUAL and hasattr(self, "_update_query_visual_selection"):
                 self._update_query_visual_selection(cursor=(target_row, 0))
             else:
-                self.query_input.cursor_location = (target_row, 0)
+                self._set_normal_selection((target_row, 0))
         else:
             # Go to last line
             self._move_with_motion("G")
@@ -199,11 +200,11 @@ class QueryEditingCursorMixin:
         self.action_enter_insert_mode()
 
     def action_append_insert_mode(self: QueryMixinHost) -> None:
-        """Enter insert mode after cursor (a)."""
-        lines = self.query_input.text.split("\n")
-        row, col = self.query_input.cursor_location
-        line_len = len(lines[row]) if row < len(lines) else 0
-        self.query_input.cursor_location = (row, min(col + 1, line_len))
+        """Enter insert mode after the current selection (a)."""
+        from textual.widgets.text_area import Selection
+
+        _, end = self._ordered_selection(self.query_input.selection)
+        self.query_input.selection = Selection(end, end)
         self.action_enter_insert_mode()
 
     def action_append_line_end(self: QueryMixinHost) -> None:
