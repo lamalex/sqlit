@@ -89,6 +89,8 @@ class QueryEditingSelectionMixin:
 
         from sqlit.core.vim import VimMode
 
+        if not self._applying_syntax_selection:
+            self._reset_syntax_selection_history()
         self._query_selection = snapshot
         self._query_selection_apply_depth += 1
         try:
@@ -120,6 +122,8 @@ class QueryEditingSelectionMixin:
             and current.end == self._query_selection.end
         ):
             return
+
+        self._reset_syntax_selection_history()
 
         changes = {
             "start": current.start,

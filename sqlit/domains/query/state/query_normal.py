@@ -26,6 +26,11 @@ class QueryNormalModeState(State):
             help="Select text objects or edit surrounds",
         )
         self.allows("collapse_selection", label="Collapse", help="Collapse selection to its head")
+        self.allows("expand_syntax_selection", label="Expand Syntax", help="Expand to parent syntax node")
+        self.allows("shrink_syntax_selection", label="Shrink Syntax", help="Restore previous syntax selection")
+        self.allows("select_next_syntax_sibling", help="Select next syntax sibling")
+        self.allows("select_previous_syntax_sibling", help="Select previous syntax sibling")
+        self.allows("select_current_statement", help="Select statement at cursor")
         self.allows("replace_selection", label="Replace", help="Replace selection with a character")
         self.allows("g_leader_key", label="Go", help="Go motions (menu)")
         self.allows("new_query", label="New", help="New query (clear all)")

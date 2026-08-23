@@ -127,6 +127,8 @@ Proposed defaults should follow Helix where practical:
 - `Alt+n`: next sibling
 - `Alt+p`: previous sibling
 
+The initial structural slice now supports parent expansion, history-based shrinking, previous and next sibling selection, and statement selection through `QueryAnalysisService`. Structural selections use the same canonical selection snapshot as other editor commands, and ordinary motions invalidate structural history rather than restoring stale ranges.
+
 The spike succeeds when these commands remain responsive and useful across representative SQLite, PostgreSQL, MySQL, SQL Server, BigQuery, and Snowflake queries, including incomplete SQL.
 
 ## Phase 3: Embedded SQL Semantics
