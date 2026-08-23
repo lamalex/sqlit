@@ -10,6 +10,7 @@ from sqlit.core.vim import VimMode
 from sqlit.domains.query.editing import QuerySelectionSnapshot
 from sqlit.shared.ui.spinner import Spinner
 
+from .query_analysis import QueryAnalysisMixin
 from .query_documents import QueryDocumentsMixin
 from .query_editing_clipboard import QueryEditingClipboardMixin
 from .query_editing_comments import QueryEditingCommentsMixin
@@ -27,6 +28,7 @@ from .query_results import QueryResultsMixin
 
 
 class QueryMixin(
+    QueryAnalysisMixin,
     QueryDocumentsMixin,
     QueryEditingVisualMixin,
     QueryEditingVisualLineMixin,

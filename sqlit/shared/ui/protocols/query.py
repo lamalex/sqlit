@@ -48,6 +48,7 @@ class QueryStateProtocol(Protocol):
     _restoring_undo_state: bool
     _query_selection: Any
     _query_selection_apply_depth: int
+    _query_analysis_service: Any | None
 
 
 class QueryActionsProtocol(Protocol):
@@ -75,6 +76,9 @@ class QueryActionsProtocol(Protocol):
         ...
 
     def _observe_query_selection(self, previous: Any, current: Any) -> None:
+        ...
+
+    def _get_query_analysis_service(self) -> Any:
         ...
 
     def action_execute_query(self) -> None:

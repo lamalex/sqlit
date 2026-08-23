@@ -103,6 +103,8 @@ UI mixins and editing commands must not depend directly on Textual's syntax-docu
 
 `QueryTextArea` already runs with `language="sql"` through `textual[syntax]`. Textual maintains an incrementally updated `tree-sitter-sql` syntax tree. The first implementation should reuse that tree through a narrow adapter rather than introduce another immediate parser loop.
 
+The initial `QueryAnalysisService` boundary now exposes parser-neutral syntax ranges for nodes, statements, parents, siblings, and diagnostics. Its Textual adapter is the only layer that accesses the maintained tree, converts UTF-8 parser coordinates to editor coordinates immediately, and never caches or returns parser objects.
+
 ## Phase 2: Structural Helix Editing
 
 Use the syntax service to deliver the first high-value vertical slice:
