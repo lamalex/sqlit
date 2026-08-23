@@ -13,6 +13,18 @@ from sqlit.domains.query.editing import Position
 from sqlit.domains.query.ui.adapters import TextualQueryAnalysisBackend
 from sqlit.shared.ui.widgets_text_area import QueryTextArea
 
+INCOMPLETE_JOIN_SQL = '''with cte as (SELECT *
+FROM "orders"
+LIMIT 100)
+select *
+from (
+  select *
+  from cte
+)
+left join on 1=1
+where true or 1 and not false 
+'''
+
 
 def _service(text: str, *, language: str | None = "sql") -> QueryAnalysisService:
     text_area = QueryTextArea(text, language=language)
@@ -217,3 +229,34 @@ def test_semantic_analysis_degrades_gracefully_across_sql_styles(sql: str) -> No
         result = selector(position)
         assert result is None or isinstance(result, SyntaxRange)
     assert isinstance(analysis.diagnostics(), tuple)
+
+
+def test_incomplete_join_recovers_statement_condition_and_where_ranges() -> None:
+    analysis = _service(INCOMPLETE_JOIN_SQL)
+
+    assert analysis.statement_at(Position(8, 5)) == SyntaxRange(
+        Position(0, 0), Position(9, 29), "statement"
+    )
+    assert analysis.join_condition_at(Position(8, 14)) == SyntaxRange(
+        Position(8, 13), Position(8, 16), "join_condition"
+    )
+    assert analysis.clause_at(Position(9, 10)) == SyntaxRange(
+        Position(9, 0), Position(9, 29), "where"
+    )
+    assert analysis.clause_at(Position(8, 14)) is None
+
+
+def test_incomplete_join_table_recovery_avoids_misparsed_on_identifier() -> None:
+    analysis = _service(INCOMPLETE_JOIN_SQL)
+
+    assert analysis.table_expression_at(Position(4, 2)) == SyntaxRange(
+        Position(4, 5), Position(7, 1), "table_expression"
+    )
+    assert analysis.table_expression_at(Position(8, 10)) is None
+
+
+def test_recovery_does_not_classify_keywords_inside_valid_strings() -> None:
+    analysis = _service("SELECT 'LEFT JOIN ON 1=1 WHERE false';")
+
+    assert analysis.join_condition_at(Position(0, 20)) is None
+    assert analysis.clause_at(Position(0, 28)) is None

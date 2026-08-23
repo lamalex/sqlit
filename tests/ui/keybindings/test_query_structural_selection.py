@@ -9,6 +9,17 @@ from sqlit.domains.shell.app.main import SSMSTUI
 from ..mocks import MockConnectionStore, MockSettingsStore, build_test_services
 
 SQL = "SELECT foo, bar FROM widgets;"
+INCOMPLETE_JOIN_SQL = '''with cte as (SELECT *
+FROM "orders"
+LIMIT 100)
+select *
+from (
+  select *
+  from cte
+)
+left join on 1=1
+where true or 1 and not false 
+'''
 
 
 def _make_app() -> SSMSTUI:
@@ -183,6 +194,33 @@ async def test_match_menu_selects_semantic_sql_ranges(
         app.action_focus_query()
         app.query_input.text = sql
         app._set_normal_selection((0, column))
+
+        await pilot.press("m", key)
+
+        assert app._ordered_selection(app.query_input.selection) == expected
+
+
+@pytest.mark.parametrize(
+    ("position", "key", "expected"),
+    [
+        ((8, 14), "j", ((8, 13), (8, 16))),
+        ((9, 10), "c", ((9, 0), (9, 29))),
+        ((4, 2), "t", ((4, 5), (7, 1))),
+        ((8, 5), "S", ((0, 0), (9, 29))),
+    ],
+)
+@pytest.mark.asyncio
+async def test_match_menu_recovers_ranges_from_incomplete_join(
+    position: tuple[int, int],
+    key: str,
+    expected: tuple[tuple[int, int], tuple[int, int]],
+) -> None:
+    app = _make_app()
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = INCOMPLETE_JOIN_SQL
+        app._set_normal_selection(position)
 
         await pilot.press("m", key)
 

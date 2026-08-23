@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from textual.widgets.text_area import SyntaxAwareDocument
@@ -17,6 +18,17 @@ if TYPE_CHECKING:
     from tree_sitter import Node
 
     from sqlit.shared.ui.widgets_text_area import QueryTextArea
+
+
+_CLAUSE_RE = re.compile(
+    r"\b(?:WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|RETURNING)\b",
+    re.IGNORECASE,
+)
+_JOIN_RE = re.compile(
+    r"\b(?:(?:LEFT|RIGHT|FULL|INNER|CROSS|NATURAL)(?:\s+OUTER)?\s+)?JOIN\b",
+    re.IGNORECASE,
+)
+_JOIN_CONDITION_RE = re.compile(r"\b(?:ON|USING)\b", re.IGNORECASE)
 
 
 class TextualQueryAnalysisBackend:
@@ -59,6 +71,9 @@ class TextualQueryAnalysisBackend:
         end_node = node
         if node.type == "statement":
             sibling = node.next_sibling
+            while sibling is not None and sibling.type == "ERROR":
+                end_node = sibling
+                sibling = sibling.next_sibling
             if sibling is not None and sibling.type == ";":
                 end_node = sibling
         return SyntaxRange(
@@ -75,6 +90,37 @@ class TextualQueryAnalysisBackend:
         return SyntaxRange(
             self._point_to_position(start.start_point),
             self._point_to_position(end.end_point),
+            kind,
+        )
+
+    def _position_to_offset(self, position: Position) -> int:
+        document = self._text_area.document
+        lines = document.lines
+        row = min(max(position.row, 0), len(lines) - 1)
+        col = min(max(position.col, 0), len(lines[row]))
+        return sum(len(line) + len(document.newline) for line in lines[:row]) + col
+
+    def _offset_to_position(self, offset: int) -> Position:
+        document = self._text_area.document
+        remaining = min(max(offset, 0), len(document.text))
+        for row, line in enumerate(document.lines):
+            if remaining <= len(line):
+                return Position(row, remaining)
+            remaining -= len(line) + len(document.newline)
+        row = len(document.lines) - 1
+        return Position(row, len(document.lines[row]))
+
+    def _source_range(self, start: int, end: int, kind: str) -> SyntaxRange | None:
+        text = self._text_area.text
+        while start < end and text[start].isspace():
+            start += 1
+        while end > start and text[end - 1].isspace():
+            end -= 1
+        if start == end:
+            return None
+        return SyntaxRange(
+            self._offset_to_position(start),
+            self._offset_to_position(end),
             kind,
         )
 
@@ -118,7 +164,19 @@ class TextualQueryAnalysisBackend:
         node = self._node_at(position)
         while node is not None and node.type != "statement":
             node = node.parent
-        return self._range(node) if node is not None else None
+        if node is not None:
+            return self._range(node)
+
+        root = self._root_node()
+        if root is None:
+            return None
+        for candidate in reversed(root.named_children):
+            if candidate.type != "statement":
+                continue
+            candidate_range = self._range(candidate)
+            if candidate_range.start <= position <= candidate_range.end:
+                return candidate_range
+        return None
 
     def parent_range(self, selection: SyntaxRange) -> SyntaxRange | None:
         node = self._node_for_selection(selection)
@@ -169,7 +227,8 @@ class TextualQueryAnalysisBackend:
         if target == SemanticTarget.CLAUSE:
             clause = self._ancestor(node, "where", "group_by", "order_by", "limit", "returning")
             if clause is None:
-                return None
+                error = self._ancestor(node, "ERROR")
+                return self._fallback_clause(position, error) if error is not None else None
             if clause.type == "group_by":
                 having = next(
                     (child for child in clause.children if child.type == "keyword_having"),
@@ -184,7 +243,11 @@ class TextualQueryAnalysisBackend:
         if target == SemanticTarget.JOIN_CONDITION:
             join = self._ancestor(node, "join")
             if join is None:
-                return None
+                return (
+                    self._fallback_join_condition(position)
+                    if self._ancestor(node, "ERROR") is not None
+                    else None
+                )
             predicate = join.child_by_field_name("predicate")
             if predicate is None:
                 using_index = next(
@@ -201,7 +264,21 @@ class TextualQueryAnalysisBackend:
         if target == SemanticTarget.TABLE_EXPRESSION:
             relation = self._ancestor(node, "relation")
             if relation is not None:
-                return self._semantic_range(relation, target)
+                relation_range = self._semantic_range(relation, target)
+                text = self._text_area.text
+                start = self._position_to_offset(relation_range.start)
+                end = self._position_to_offset(relation_range.end)
+                if text[start:end].casefold() != "on":
+                    return relation_range
+                return None
+            container = self._ancestor(node, "from", "join")
+            if container is not None:
+                relation = next(
+                    (child for child in container.named_children if child.type == "relation"),
+                    None,
+                )
+                if relation is not None:
+                    return self._semantic_range(relation, target)
             object_reference = self._ancestor(node, "object_reference")
             if (
                 object_reference is not None
@@ -209,6 +286,46 @@ class TextualQueryAnalysisBackend:
                 and object_reference.parent.type == "from"
             ):
                 return self._semantic_range(object_reference, target)
+        return None
+
+    def _fallback_clause(
+        self, position: Position, error: Node
+    ) -> SyntaxRange | None:
+        text = self._text_area.text
+        offset = self._position_to_offset(position)
+        error_start = self._position_to_offset(self._point_to_position(error.start_point))
+        error_end = self._position_to_offset(self._point_to_position(error.end_point))
+        matches = list(_CLAUSE_RE.finditer(text, error_start, error_end))
+        for index in range(len(matches) - 1, -1, -1):
+            match = matches[index]
+            if match.start() > offset:
+                continue
+            end = matches[index + 1].start() if index + 1 < len(matches) else error_end
+            semicolon = text.find(";", match.end(), end)
+            if semicolon >= 0:
+                end = semicolon
+            if offset <= end:
+                kind = match.group(0).casefold().replace(" ", "_")
+                return self._source_range(match.start(), end, kind)
+        return None
+
+    def _fallback_join_condition(self, position: Position) -> SyntaxRange | None:
+        text = self._text_area.text
+        offset = self._position_to_offset(position)
+        joins = list(_JOIN_RE.finditer(text))
+        for join in reversed(joins):
+            if join.start() > offset:
+                continue
+            boundary = _CLAUSE_RE.search(text, join.end())
+            end = boundary.start() if boundary is not None else len(text)
+            semicolon = text.find(";", join.end(), end)
+            if semicolon >= 0:
+                end = semicolon
+            if offset > end:
+                continue
+            condition = _JOIN_CONDITION_RE.search(text, join.end(), end)
+            if condition is not None:
+                return self._source_range(condition.end(), end, "join_condition")
         return None
 
     def diagnostics(self) -> tuple[QueryDiagnostic, ...]:
