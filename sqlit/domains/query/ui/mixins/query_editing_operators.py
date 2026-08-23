@@ -515,11 +515,18 @@ class QueryEditingOperatorsMixin:
         """Enter INSERT mode."""
         from sqlit.core.vim import VimMode
 
-        self.vim_mode = VimMode.INSERT
-        self.query_input.read_only = False
+        selection = self.query_input.selection
+        self._replace_query_selection(
+            start=selection.start,
+            end=selection.end,
+            logical_cursor=selection.end,
+            vim_mode=VimMode.INSERT,
+            visual_anchor=None,
+            visual_cursor=None,
+            visual_line_anchor_row=None,
+            update_chrome=True,
+        )
         self.query_input.focus()
-        self._update_footer_bindings()
-        self._update_vim_mode_visuals()
 
     def action_change_line(self: QueryMixinHost) -> None:
         """Change the current line (cc)."""

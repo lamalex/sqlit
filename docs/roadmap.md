@@ -62,9 +62,11 @@ Undo and redo snapshots should restore:
 
 Undo and redo now use immutable query editor snapshots containing directional selection endpoints, logical cursor, primary/substantive provenance, Vim mode, and visual anchors. Restoration preserves NORMAL, character-selection, line-selection, and INSERT behavior; redo restores the exact post-edit snapshot and new edits invalidate the previous redo branch immediately.
 
-### Unified Selection State
+### Unified Selection State (completed)
 
 Reduce the internal distinction between NORMAL, VISUAL, and VISUAL LINE selections. Commands should consume a common selection model even if different modes remain visible to users.
+
+NORMAL, character-selection, line-selection, and INSERT modes now share one immutable live selection snapshot. It owns directional Textual endpoints, the logical head, primary/substantive provenance, mode, and visual anchors; editor commands replace that snapshot atomically, Textual-originated selections are observed back into it, and undo captures the same canonical state.
 
 ## Phase 1: Syntax Analysis Boundary
 

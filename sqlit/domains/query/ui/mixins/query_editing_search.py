@@ -47,8 +47,6 @@ class QueryEditingSearchMixin:
         direction: int,
         initial: bool = False,
     ) -> None:
-        from textual.widgets.text_area import Selection
-
         from sqlit.domains.query.editing.search import find_query_match
 
         query = self._last_query_search
@@ -78,11 +76,14 @@ class QueryEditingSearchMixin:
         start = self._offset_to_location(text, match.start)
         end = self._offset_to_location(text, match.end)
         if direction >= 0:
-            self.query_input.selection = Selection(start, end)
-            self._normal_cursor = self._position_before(end)
-            self._normal_textual_cursor = end
+            textual_start, textual_end = start, end
+            logical_cursor = self._position_before(end)
         else:
-            self.query_input.selection = Selection(end, start)
-            self._normal_cursor = start
-            self._normal_textual_cursor = start
-        self._normal_selection_primary = False
+            textual_start, textual_end = end, start
+            logical_cursor = start
+        self._replace_query_selection(
+            start=textual_start,
+            end=textual_end,
+            logical_cursor=logical_cursor,
+            normal_selection_primary=False,
+        )

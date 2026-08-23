@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from sqlit.shared.ui.protocols import QueryMixinHost
@@ -15,27 +16,135 @@ if TYPE_CHECKING:
 class QueryEditingSelectionMixin:
     """Selection-related actions for the query editor."""
 
-    def _query_logical_head(self: QueryMixinHost) -> tuple[int, int]:
-        tracked_cursor = getattr(self, "_normal_cursor", None)
-        tracked_textual_cursor = getattr(self, "_normal_textual_cursor", None)
-        selection = self.query_input.selection
-        tracking_is_visible = (
-            selection.start != selection.end or tracked_cursor == tracked_textual_cursor
+    @property
+    def vim_mode(self: QueryMixinHost):
+        return self._query_selection.vim_mode
+
+    @vim_mode.setter
+    def vim_mode(self: QueryMixinHost, mode) -> None:
+        self._query_selection = replace(self._query_selection, vim_mode=mode)
+
+    @property
+    def _normal_cursor(self: QueryMixinHost) -> tuple[int, int]:
+        return self._query_selection.logical_cursor
+
+    @_normal_cursor.setter
+    def _normal_cursor(self: QueryMixinHost, location: tuple[int, int] | None) -> None:
+        if location is not None:
+            self._query_selection = replace(self._query_selection, logical_cursor=location)
+
+    @property
+    def _normal_textual_cursor(self: QueryMixinHost) -> tuple[int, int]:
+        return self._query_selection.end
+
+    @_normal_textual_cursor.setter
+    def _normal_textual_cursor(self: QueryMixinHost, location: tuple[int, int] | None) -> None:
+        if location is not None:
+            self._query_selection = replace(self._query_selection, end=location)
+
+    @property
+    def _normal_selection_primary(self: QueryMixinHost) -> bool:
+        return self._query_selection.normal_selection_primary
+
+    @_normal_selection_primary.setter
+    def _normal_selection_primary(self: QueryMixinHost, primary: bool) -> None:
+        self._query_selection = replace(self._query_selection, normal_selection_primary=primary)
+
+    @property
+    def _visual_anchor(self: QueryMixinHost) -> tuple[int, int] | None:
+        return self._query_selection.visual_anchor
+
+    @_visual_anchor.setter
+    def _visual_anchor(self: QueryMixinHost, location: tuple[int, int] | None) -> None:
+        self._query_selection = replace(self._query_selection, visual_anchor=location)
+
+    @property
+    def _visual_cursor(self: QueryMixinHost) -> tuple[int, int] | None:
+        return self._query_selection.visual_cursor
+
+    @_visual_cursor.setter
+    def _visual_cursor(self: QueryMixinHost, location: tuple[int, int] | None) -> None:
+        self._query_selection = replace(
+            self._query_selection,
+            logical_cursor=location or self._query_selection.logical_cursor,
+            visual_cursor=location,
         )
-        if (
-            tracked_cursor is not None
-            and self.query_input.cursor_location == tracked_textual_cursor
-            and tracking_is_visible
+
+    @property
+    def _visual_line_anchor_row(self: QueryMixinHost) -> int | None:
+        return self._query_selection.visual_line_anchor_row
+
+    @_visual_line_anchor_row.setter
+    def _visual_line_anchor_row(self: QueryMixinHost, row: int | None) -> None:
+        self._query_selection = replace(self._query_selection, visual_line_anchor_row=row)
+
+    def _apply_query_selection(
+        self: QueryMixinHost,
+        snapshot,
+        *,
+        update_chrome: bool = False,
+    ) -> None:
+        """Install semantic selection state and project it into Textual."""
+        from textual.widgets.text_area import Selection
+
+        from sqlit.core.vim import VimMode
+
+        self._query_selection = snapshot
+        self._query_selection_apply_depth += 1
+        try:
+            self.query_input.read_only = snapshot.vim_mode != VimMode.INSERT
+            self.query_input.selection = Selection(snapshot.start, snapshot.end)
+        finally:
+            self._query_selection_apply_depth -= 1
+        if update_chrome:
+            self._update_vim_mode_visuals()
+            self._update_footer_bindings()
+
+    def _replace_query_selection(
+        self: QueryMixinHost,
+        *,
+        update_chrome: bool = False,
+        **changes,
+    ):
+        """Apply a copy of the live selection state with explicit changes."""
+        snapshot = replace(self._query_selection, **changes)
+        self._apply_query_selection(snapshot, update_chrome=update_chrome)
+        return snapshot
+
+    def _observe_query_selection(self: QueryMixinHost, previous, current) -> None:
+        """Incorporate a Textual-originated cursor or selection change."""
+        from sqlit.core.vim import VimMode
+
+        if self._query_selection_apply_depth or (
+            current.start == self._query_selection.start
+            and current.end == self._query_selection.end
         ):
-            return tracked_cursor
-        return self.query_input.cursor_location
+            return
+
+        changes = {
+            "start": current.start,
+            "end": current.end,
+            "logical_cursor": current.end,
+        }
+        if self.vim_mode == VimMode.NORMAL:
+            changes["normal_selection_primary"] = False
+        elif self.vim_mode == VimMode.INSERT:
+            changes.update(
+                visual_anchor=None,
+                visual_cursor=None,
+                visual_line_anchor_row=None,
+            )
+        self._query_selection = replace(self._query_selection, **changes)
+
+    def _query_logical_head(self: QueryMixinHost) -> tuple[int, int]:
+        return self._query_selection.logical_cursor
 
     def _set_normal_selection(
         self: QueryMixinHost,
         position: tuple[int, int] | None = None,
     ) -> None:
         """Select the character under the NORMAL-mode cursor."""
-        from textual.widgets.text_area import Selection
+        from sqlit.core.vim import VimMode
 
         text = self.query_input.text
         lines = text.split("\n")
@@ -58,10 +167,16 @@ class QueryEditingSelectionMixin:
 
         # Reverse the Textual selection so its logical head remains on the
         # selected character rather than one position after it.
-        self.query_input.selection = Selection(boundary, cursor)
-        self._normal_cursor = cursor
-        self._normal_textual_cursor = cursor
-        self._normal_selection_primary = True
+        self._replace_query_selection(
+            start=boundary,
+            end=cursor,
+            logical_cursor=cursor,
+            normal_selection_primary=True,
+            vim_mode=VimMode.NORMAL,
+            visual_anchor=None,
+            visual_cursor=None,
+            visual_line_anchor_row=None,
+        )
 
     def _set_normal_motion_selection(
         self: QueryMixinHost,
@@ -70,28 +185,30 @@ class QueryEditingSelectionMixin:
         motion_key: str,
     ) -> None:
         """Apply Helix-style NORMAL selection semantics for a motion."""
-        from textual.widgets.text_area import Selection
-
         if origin == destination and motion_key not in {"e", "E"}:
             self._set_normal_selection(destination)
             return
 
         if motion_key in {"e", "E"}:
             boundary = self._position_after(destination)
-            self.query_input.selection = Selection(origin, boundary)
-            self._normal_cursor = destination
-            self._normal_textual_cursor = boundary
-            self._normal_selection_primary = False
+            self._replace_query_selection(
+                start=origin,
+                end=boundary,
+                logical_cursor=destination,
+                normal_selection_primary=False,
+            )
             return
 
         if motion_key not in {"w", "W", "b", "B"}:
             self._set_normal_selection(destination)
             return
 
-        self.query_input.selection = Selection(origin, destination)
-        self._normal_cursor = destination
-        self._normal_textual_cursor = destination
-        self._normal_selection_primary = False
+        self._replace_query_selection(
+            start=origin,
+            end=destination,
+            logical_cursor=destination,
+            normal_selection_primary=False,
+        )
 
     def action_collapse_selection(self: QueryMixinHost) -> None:
         """Collapse the current range to its logical head."""
@@ -111,11 +228,6 @@ class QueryEditingSelectionMixin:
             cursor = self._query_logical_head()
 
         was_visual = self.vim_mode in {VimMode.VISUAL, VimMode.VISUAL_LINE}
-        self._visual_anchor = None
-        self._visual_cursor = None
-        self._visual_line_anchor_row = None
-        if was_visual:
-            self.vim_mode = VimMode.NORMAL
         self._set_normal_selection(cursor)
         if was_visual:
             self._update_vim_mode_visuals()
@@ -162,8 +274,6 @@ class QueryEditingSelectionMixin:
     def _apply_surround_edit(
         self: QueryMixinHost, operation: str, delimiters: str
     ) -> None:
-        from textual.widgets.text_area import Selection
-
         from sqlit.core.vim import VimMode
         from sqlit.domains.query.editing import (
             add_surround,
@@ -212,22 +322,20 @@ class QueryEditingSelectionMixin:
         new_start = self._offset_to_location(result.text, result.start)
         new_end = self._offset_to_location(result.text, result.end)
         new_head = self._offset_to_location(result.text, result.start + head_delta)
-        if backward:
-            self.query_input.selection = Selection(new_end, new_start)
-            textual_cursor = new_start
-        else:
-            self.query_input.selection = Selection(new_start, new_end)
-            textual_cursor = new_end
-        self._normal_cursor = new_head
-        self._normal_textual_cursor = textual_cursor
-        self._normal_selection_primary = False if was_visual else selection_was_primary
-        if was_visual:
-            self._visual_anchor = None
-            self._visual_cursor = None
-            self._visual_line_anchor_row = None
-            self.vim_mode = VimMode.NORMAL
-            self._update_vim_mode_visuals()
-            self._update_footer_bindings()
+        textual_start, textual_end = (
+            (new_end, new_start) if backward else (new_start, new_end)
+        )
+        self._replace_query_selection(
+            start=textual_start,
+            end=textual_end,
+            logical_cursor=new_head,
+            normal_selection_primary=False if was_visual else selection_was_primary,
+            vim_mode=VimMode.NORMAL if was_visual else self.vim_mode,
+            visual_anchor=None if was_visual else self._visual_anchor,
+            visual_cursor=None if was_visual else self._visual_cursor,
+            visual_line_anchor_row=None if was_visual else self._visual_line_anchor_row,
+            update_chrome=was_visual,
+        )
 
     def action_replace_selection(self: QueryMixinHost) -> None:
         """Replace every selected character with one typed character."""
@@ -242,8 +350,6 @@ class QueryEditingSelectionMixin:
         def handle_result(char: str | None) -> None:
             if not char:
                 return
-
-            from textual.widgets.text_area import Selection
 
             from sqlit.domains.query.editing import get_selection_text, operator_delete, paste_text
 
@@ -260,15 +366,18 @@ class QueryEditingSelectionMixin:
             self.query_input.text = replaced.text
 
             selection_end = (replaced.row, replaced.col)
-            if backward:
-                self.query_input.selection = Selection(selection_end, start)
-                self._normal_cursor = start
-                self._normal_textual_cursor = start
-            else:
-                self.query_input.selection = Selection(start, selection_end)
-                self._normal_cursor = self._position_before(selection_end)
-                self._normal_textual_cursor = selection_end
-            self._normal_selection_primary = selection_was_primary
+            textual_start, textual_end = (
+                (selection_end, start) if backward else (start, selection_end)
+            )
+            logical_cursor = (
+                start if backward else self._position_before(selection_end)
+            )
+            self._replace_query_selection(
+                start=textual_start,
+                end=textual_end,
+                logical_cursor=logical_cursor,
+                normal_selection_primary=selection_was_primary,
+            )
 
         self.push_screen(CharPendingMenuScreen("r"), handle_result)
 
@@ -279,35 +388,32 @@ class QueryEditingSelectionMixin:
             if not obj_char:
                 return
 
-            from textual.widgets.text_area import Selection
-
             from sqlit.domains.query.editing import get_text_object
 
-            tracked_cursor = getattr(self, "_normal_cursor", None)
-            tracked_textual_cursor = getattr(self, "_normal_textual_cursor", None)
-            if tracked_cursor is not None and self.query_input.cursor_location == tracked_textual_cursor:
-                row, col = tracked_cursor
-            else:
-                row, col = self.query_input.cursor_location
+            row, col = self._query_selection.logical_cursor
             range_obj = get_text_object(obj_char, self.query_input.text, row, col, around)
             if range_obj is None:
                 return
 
             if range_obj.start > range_obj.end:
                 cursor = (range_obj.start.row, range_obj.start.col)
-                self.query_input.selection = Selection(cursor, cursor)
-                self._normal_cursor = cursor
-                self._normal_textual_cursor = cursor
-                self._normal_selection_primary = False
+                self._replace_query_selection(
+                    start=cursor,
+                    end=cursor,
+                    logical_cursor=cursor,
+                    normal_selection_primary=False,
+                )
                 return
 
             ordered = range_obj.ordered()
             start = (ordered.start.row, ordered.start.col)
             end = self._position_after((ordered.end.row, ordered.end.col))
-            self.query_input.selection = Selection(start, end)
-            self._normal_cursor = (ordered.end.row, ordered.end.col)
-            self._normal_textual_cursor = end
-            self._normal_selection_primary = False
+            self._replace_query_selection(
+                start=start,
+                end=end,
+                logical_cursor=(ordered.end.row, ordered.end.col),
+                normal_selection_primary=False,
+            )
 
         mode = "around" if around else "inner"
         self.push_screen(TextObjectMenuScreen(mode, operator="select"), handle_result)
@@ -369,16 +475,16 @@ class QueryEditingSelectionMixin:
         end_col: int,
     ) -> None:
         """Flash the yanked range by temporarily selecting it."""
-        from textual.widgets.text_area import Selection
-
         # Save current cursor position
         cursor = self.query_input.cursor_location
 
         # Set selection to yanked range to highlight it
-        self.query_input.selection = Selection(
-            (start_row, start_col), (end_row, end_col)
+        self._replace_query_selection(
+            start=(start_row, start_col),
+            end=(end_row, end_col),
+            logical_cursor=cursor,
+            normal_selection_primary=True,
         )
-        self._normal_selection_primary = True
 
         # Clear selection after a short delay
         def clear_flash() -> None:
@@ -404,7 +510,7 @@ class QueryEditingSelectionMixin:
 
         if text:
             self._copy_text(text)
-            self._normal_selection_primary = True
+            self._replace_query_selection(normal_selection_primary=True)
             # Flash: keep selection visible briefly, then clear
             cursor = self.query_input.cursor_location
 
@@ -415,8 +521,6 @@ class QueryEditingSelectionMixin:
 
     def _change_selection(self: QueryMixinHost, *, push_undo: bool = True) -> None:
         """Change (delete and enter insert mode) the current selection."""
-        from textual.widgets.text_area import Selection
-
         from sqlit.domains.query.editing import get_selection_text, operator_delete
 
         selection = self.query_input.selection
@@ -440,7 +544,11 @@ class QueryEditingSelectionMixin:
 
         # Clear selection and enter insert mode
         cursor = self.query_input.cursor_location
-        self.query_input.selection = Selection(cursor, cursor)
+        self._replace_query_selection(
+            start=cursor,
+            end=cursor,
+            logical_cursor=cursor,
+        )
 
         # Enter insert mode
         self._enter_insert_mode()
@@ -475,16 +583,17 @@ class QueryEditingSelectionMixin:
 
     def _extend_selection(self: QueryMixinHost, new_row: int, new_col: int) -> None:
         """Extend selection from current anchor to new position."""
-        from textual.widgets.text_area import Selection
-
         # Get current selection anchor (start point)
         selection = self.query_input.selection
         anchor = selection.start
 
         # Update cursor and selection
-        self.query_input.cursor_location = (new_row, new_col)
-        self.query_input.selection = Selection(anchor, (new_row, new_col))
-        self._normal_selection_primary = False
+        self._replace_query_selection(
+            start=anchor,
+            end=(new_row, new_col),
+            logical_cursor=(new_row, new_col),
+            normal_selection_primary=False,
+        )
 
     def action_select_left(self: QueryMixinHost) -> None:
         """Extend selection one character left (Shift+Left)."""

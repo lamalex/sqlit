@@ -163,7 +163,10 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
         selection = self.query_input.selection
         if selection.start == selection.end:
             return False
-        return self.vim_mode != VimMode.NORMAL or not self._normal_selection_primary
+        return (
+            self.vim_mode != VimMode.NORMAL
+            or not self._query_selection.normal_selection_primary
+        )
 
     def _execute_query_common(self: QueryMixinHost, keep_insert_mode: bool) -> None:
         """Common query execution logic."""
@@ -692,11 +695,8 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
         """Restore INSERT mode after query execution (called on main thread)."""
         from sqlit.core.vim import VimMode
 
-        self.vim_mode = VimMode.INSERT
-        self.query_input.read_only = False
+        self._replace_query_selection(vim_mode=VimMode.INSERT, update_chrome=True)
         self.query_input.focus()
-        self._update_footer_bindings()
-        self._update_vim_mode_visuals()
 
     def action_cancel_query(self: QueryMixinHost) -> None:
         """Cancel the currently running query."""

@@ -195,30 +195,24 @@ class QueryEditingCursorMixin:
 
     def action_prepend_insert_mode(self: QueryMixinHost) -> None:
         """Enter insert mode at start of line (I)."""
-        from textual.widgets.text_area import Selection
-
         row, _ = self._query_logical_head()
         target = (row, 0)
-        self.query_input.selection = Selection(target, target)
+        self._replace_query_selection(start=target, end=target, logical_cursor=target)
         self.action_enter_insert_mode()
 
     def action_append_insert_mode(self: QueryMixinHost) -> None:
         """Enter insert mode after the current selection (a)."""
-        from textual.widgets.text_area import Selection
-
         _, end = self._ordered_selection(self.query_input.selection)
-        self.query_input.selection = Selection(end, end)
+        self._replace_query_selection(start=end, end=end, logical_cursor=end)
         self.action_enter_insert_mode()
 
     def action_append_line_end(self: QueryMixinHost) -> None:
         """Enter insert mode at end of line (A)."""
-        from textual.widgets.text_area import Selection
-
         lines = self.query_input.text.split("\n")
         row, _ = self._query_logical_head()
         line_len = len(lines[row]) if row < len(lines) else 0
         target = (row, line_len)
-        self.query_input.selection = Selection(target, target)
+        self._replace_query_selection(start=target, end=target, logical_cursor=target)
         self.action_enter_insert_mode()
 
     def _show_motion_char_pending_menu(self: QueryMixinHost, motion: str) -> None:

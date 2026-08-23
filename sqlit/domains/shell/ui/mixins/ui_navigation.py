@@ -53,19 +53,10 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
 
     def action_focus_query(self: UINavigationMixinHost) -> None:
         """Focus the Query pane (in NORMAL mode)."""
-        from sqlit.core.vim import VimMode
-
-        tracked_cursor = getattr(self, "_normal_cursor", None)
-        tracked_textual_cursor = getattr(self, "_normal_textual_cursor", None)
-        cursor = (
-            tracked_cursor
-            if self.query_input.cursor_location == tracked_textual_cursor
-            else self.query_input.cursor_location
-        )
+        cursor = self._query_selection.logical_cursor
         self._clear_count_buffer()  # Clear any pending count prefix
         if self._fullscreen_mode != "none":
             self._set_fullscreen_mode("none")
-        self.vim_mode = VimMode.NORMAL
         self._last_right_pane = "query"
         self.query_input.read_only = True
         self.query_input.focus()
@@ -106,14 +97,17 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
         from sqlit.core.vim import VimMode
 
         if self.query_input.has_focus and self.vim_mode == VimMode.NORMAL:
-            from textual.widgets.text_area import Selection
-
             start, _ = self._ordered_selection(self.query_input.selection)
-            self.query_input.selection = Selection(start, start)
-            self.vim_mode = VimMode.INSERT
-            self.query_input.read_only = False
-            self._update_vim_mode_visuals()
-            self._update_footer_bindings()
+            self._replace_query_selection(
+                start=start,
+                end=start,
+                logical_cursor=start,
+                vim_mode=VimMode.INSERT,
+                visual_anchor=None,
+                visual_cursor=None,
+                visual_line_anchor_row=None,
+                update_chrome=True,
+            )
 
     def action_exit_insert_mode(self: UINavigationMixinHost) -> None:
         """Exit INSERT mode, return to NORMAL mode."""
@@ -121,7 +115,6 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
 
         self._clear_count_buffer()  # Clear any pending count prefix
         if self.vim_mode == VimMode.INSERT:
-            self.vim_mode = VimMode.NORMAL
             self.query_input.read_only = True
             self._hide_autocomplete()
             self._set_normal_selection()
@@ -241,7 +234,6 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
         except Exception:
             has_query_focus = False
         if not has_query_focus and self.vim_mode == VimMode.INSERT:
-            self.vim_mode = VimMode.NORMAL
             try:
                 self.query_input.read_only = True
                 self._set_normal_selection()

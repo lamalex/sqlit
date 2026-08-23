@@ -1695,10 +1695,17 @@ class ResultsMixin:
 
             from sqlit.core.vim import VimMode
 
-            self.vim_mode = VimMode.INSERT
-            self.query_input.read_only = False
-            self._update_vim_mode_visuals()
-            self._update_footer_bindings()
+            cursor = (0, cursor_pos)
+            self._replace_query_selection(
+                start=cursor,
+                end=cursor,
+                logical_cursor=cursor,
+                vim_mode=VimMode.INSERT,
+                visual_anchor=None,
+                visual_cursor=None,
+                visual_line_anchor_row=None,
+                update_chrome=True,
+            )
 
         request_transition = getattr(
             self, "_request_query_document_transition", None

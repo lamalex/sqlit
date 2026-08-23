@@ -432,13 +432,10 @@ class QueryTextArea(TextArea):
     def _watch_selection(self, previous_selection: Selection, selection: Selection) -> None:
         """Clear line cache when cursor row changes (for relative line numbers)."""
         super()._watch_selection(previous_selection, selection)
-        try:
-            from sqlit.core.vim import VimMode
-
-            if self.app.vim_mode == VimMode.NORMAL and previous_selection != selection:
-                self.app._normal_selection_primary = False
-        except Exception:
-            pass
+        if self.is_attached:
+            observer = getattr(self.app, "_observe_query_selection", None)
+            if callable(observer):
+                observer(previous_selection, selection)
         if self._relative_line_numbers and self.show_line_numbers:
             # Get current cursor row
             cursor_row = self.selection.end[0]

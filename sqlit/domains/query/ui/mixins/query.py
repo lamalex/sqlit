@@ -6,6 +6,8 @@ from typing import Any
 
 from textual.worker import Worker
 
+from sqlit.core.vim import VimMode
+from sqlit.domains.query.editing import QuerySelectionSnapshot
 from sqlit.shared.ui.spinner import Spinner
 
 from .query_documents import QueryDocumentsMixin
@@ -55,5 +57,12 @@ class QueryMixin(
     _results_render_worker: Worker[Any] | None = None
     _results_render_token: int = 0
     _query_target_database: str | None = None
-    _normal_selection_primary: bool = True
     _query_execution_scope: str = "query"
+    _query_selection = QuerySelectionSnapshot(
+        start=(0, 0),
+        end=(0, 0),
+        logical_cursor=(0, 0),
+        normal_selection_primary=True,
+        vim_mode=VimMode.NORMAL,
+    )
+    _query_selection_apply_depth: int = 0

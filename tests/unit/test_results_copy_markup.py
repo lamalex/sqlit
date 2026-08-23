@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 
+from sqlit.core.vim import VimMode
 from sqlit.domains.results.ui.mixins.results import ResultsMixin
 
 
@@ -122,6 +123,11 @@ class _FakeEditApp(_FakeApp):
 
     def _update_vim_mode_visuals(self) -> None:
         pass
+
+    def _replace_query_selection(self, *, update_chrome: bool = False, **changes: Any) -> None:
+        mode = changes["vim_mode"]
+        self.vim_mode = mode
+        self.query_input.read_only = mode != VimMode.INSERT
 
 
 def test_delete_row_strips_filter_markup_before_generating_sql() -> None:

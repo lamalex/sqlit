@@ -31,8 +31,6 @@ class QueryEditingClipboardMixin:
 
     def action_select_all(self: QueryMixinHost) -> None:
         """Select all text in query editor (CTRL+A)."""
-        from textual.widgets.text_area import Selection
-
         from sqlit.domains.query.editing import select_all_range
 
         text = self.query_input.text
@@ -40,11 +38,13 @@ class QueryEditingClipboardMixin:
             return
 
         start_row, start_col, end_row, end_col = select_all_range(text)
-        # TextArea selection requires a Selection object
-        self.query_input.selection = Selection(
-            (start_row, start_col), (end_row, end_col)
+        end = (end_row, end_col)
+        self._replace_query_selection(
+            start=(start_row, start_col),
+            end=end,
+            logical_cursor=self._position_before(end),
+            normal_selection_primary=False,
         )
-        self._normal_selection_primary = False
 
     def action_copy_selection(self: QueryMixinHost) -> None:
         """Copy selected text to clipboard (CTRL+C)."""
@@ -73,18 +73,19 @@ class QueryEditingClipboardMixin:
     def action_paste(self: QueryMixinHost) -> None:
         """Paste text from clipboard (CTRL+V)."""
         from sqlit.core.vim import VimMode
-        from textual.widgets.text_area import Selection
 
         clipboard = self._get_clipboard_text()
         if self.vim_mode == VimMode.NORMAL and self._has_selection():
             _, end = self._ordered_selection(self.query_input.selection)
-            self.query_input.selection = Selection(end, end)
+            self._replace_query_selection(
+                start=end,
+                end=end,
+                logical_cursor=end,
+            )
         self._paste_text(clipboard)
 
     def _paste_text(self: QueryMixinHost, clipboard: str) -> None:
         """Paste provided text at the query cursor."""
-        from textual.widgets.text_area import Selection
-
         from sqlit.domains.query.editing import paste_text
 
         if not clipboard:
@@ -117,7 +118,11 @@ class QueryEditingClipboardMixin:
         if self.vim_mode == VimMode.NORMAL:
             self._set_normal_selection(cursor)
         else:
-            self.query_input.selection = Selection(cursor, cursor)
+            self._replace_query_selection(
+                start=cursor,
+                end=cursor,
+                logical_cursor=cursor,
+            )
 
     def _get_clipboard_text(self: QueryMixinHost, prefer_internal: bool = False) -> str:
         """Get text from system clipboard."""

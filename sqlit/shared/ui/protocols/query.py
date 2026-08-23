@@ -46,6 +46,8 @@ class QueryStateProtocol(Protocol):
     _visual_cursor: tuple[int, int] | None
     _visual_line_anchor_row: int | None
     _restoring_undo_state: bool
+    _query_selection: Any
+    _query_selection_apply_depth: int
 
 
 class QueryActionsProtocol(Protocol):
@@ -64,6 +66,15 @@ class QueryActionsProtocol(Protocol):
         ...
 
     def _query_selection_is_substantive(self) -> bool:
+        ...
+
+    def _apply_query_selection(self, snapshot: Any, *, update_chrome: bool = False) -> None:
+        ...
+
+    def _replace_query_selection(self, *, update_chrome: bool = False, **changes: Any) -> Any:
+        ...
+
+    def _observe_query_selection(self, previous: Any, current: Any) -> None:
         ...
 
     def action_execute_query(self) -> None:
