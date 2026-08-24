@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import OptionList
+from textual.widgets import OptionList, Static
 
 from sqlit.domains.query.ui.screens import SyntaxObjectPickerScreen
 from sqlit.domains.shell.app.main import SSMSTUI
@@ -243,6 +243,8 @@ async def test_syntax_picker_lists_objects_from_the_outer_statement() -> None:
         assert isinstance(app.screen, SyntaxObjectPickerScreen)
         option_list = app.screen.query_one("#syntax-object-picker-list", OptionList)
         assert option_list.option_count == 13
+        preview = app.screen.query_one("#syntax-object-picker-preview", Static)
+        assert "left join on 1=1" in str(preview.content)
 
 
 @pytest.mark.asyncio
@@ -253,10 +255,14 @@ async def test_syntax_picker_filters_and_selects_join_condition() -> None:
         app.action_focus_query()
         app.query_input.text = INCOMPLETE_JOIN_SQL
         app._set_normal_selection((1, 8))
+        original = app._query_selection
 
         await pilot.press("alt+s", "j", "o", "i", "n")
         option_list = app.screen.query_one("#syntax-object-picker-list", OptionList)
         assert option_list.option_count == 1
+        preview = app.screen.query_one("#syntax-object-picker-preview", Static)
+        assert str(preview.content) == "1=1"
+        assert app._query_selection == original
 
         await pilot.press("enter")
         await pilot.pause()
