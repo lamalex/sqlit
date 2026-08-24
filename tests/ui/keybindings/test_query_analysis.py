@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from sqlit.core.vim import VimMode
 from sqlit.domains.query.app.query_analysis import SemanticStatus, SyntaxRange
 from sqlit.domains.query.editing import Position
 from sqlit.domains.shell.app.main import SSMSTUI
@@ -50,3 +51,60 @@ async def test_analysis_service_updates_semantic_dialect_with_provider() -> None
         assert snapshot.status == SemanticStatus.EXACT
         assert snapshot.dialect == "postgres"
         assert snapshot.tables[0].name.parts == ("users",)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("sql", "reference", "definition"),
+    [
+        (
+            "WITH recent AS (SELECT id FROM users) SELECT recent.id FROM recent",
+            "recent.id",
+            "recent",
+        ),
+        ("SELECT u.id FROM users AS u", "u.id", "AS u"),
+        (
+            "SELECT total AS amount FROM orders ORDER BY amount",
+            "amount",
+            "AS amount",
+        ),
+    ],
+)
+async def test_gd_goes_to_sql_definition(
+    sql: str,
+    reference: str,
+    definition: str,
+) -> None:
+    app = _make_app()
+    app.current_provider = SimpleNamespace(metadata=SimpleNamespace(analysis_dialect="sqlite"))
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = sql
+        app._set_normal_selection((0, sql.rindex(reference)))
+
+        await pilot.press("g", "d")
+        await pilot.pause()
+
+        definition_name = definition.rsplit(" ", 1)[-1]
+        definition_offset = sql.index(definition) + len(definition) - len(definition_name)
+        assert app._query_logical_head() == (0, definition_offset)
+        assert app.vim_mode == VimMode.NORMAL
+        assert app._query_selection.normal_selection_primary is True
+
+
+@pytest.mark.asyncio
+async def test_gd_leaves_cursor_unchanged_when_semantics_are_unavailable() -> None:
+    app = _make_app()
+    app.current_provider = SimpleNamespace(metadata=SimpleNamespace(analysis_dialect="sqlite"))
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = "SELECT id FROM users WHERE ("
+        app._set_normal_selection((0, 7))
+
+        await pilot.press("g", "d")
+        await pilot.pause()
+
+        assert app._query_logical_head() == (0, 7)
+        assert not app._leader_pending

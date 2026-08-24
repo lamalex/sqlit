@@ -134,6 +134,21 @@ class QueryAnalysisMixin:
         if target is not None:
             self._apply_syntax_selection(target, remember=current)
 
+    def action_g_definition(self: QueryMixinHost) -> None:
+        """Go to the CTE or alias definition under the logical head."""
+        self._clear_leader_pending()
+        self._clear_count_buffer()
+        row, col = self._query_logical_head()
+        target = self._get_query_analysis_service().definition_at(
+            self.query_input.text,
+            Position(row, col),
+        )
+        if target is None:
+            self.notify("No SQL definition found at cursor", severity="warning")
+            return
+        self._reset_syntax_selection_history()
+        self._set_normal_selection((target.start.row, target.start.col))
+
     def action_show_syntax_object_picker(self: QueryMixinHost) -> None:
         """Choose a semantic object from the current SQL statement."""
         from sqlit.domains.query.ui.screens import (

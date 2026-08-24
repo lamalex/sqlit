@@ -52,6 +52,12 @@ class AliasKind(Enum):
     PROJECTION = "projection"
 
 
+class DefinitionKind(Enum):
+    CTE = "cte"
+    RELATION_ALIAS = "relation_alias"
+    PROJECTION_ALIAS = "projection_alias"
+
+
 @dataclass(frozen=True)
 class QualifiedName:
     parts: tuple[str, ...]
@@ -98,6 +104,17 @@ class CteDefinition:
     columns: tuple[str, ...]
     recursive: bool
     range: SyntaxRange | None
+    name_range: SyntaxRange | None
+
+
+@dataclass(frozen=True)
+class DefinitionLink:
+    statement: int
+    scope: int
+    name: str
+    kind: DefinitionKind
+    reference: SyntaxRange
+    definition: SyntaxRange
 
 
 @dataclass(frozen=True)
@@ -114,6 +131,7 @@ class SemanticSnapshot:
     columns: tuple[ColumnReference, ...] = ()
     aliases: tuple[AliasReference, ...] = ()
     ctes: tuple[CteDefinition, ...] = ()
+    definitions: tuple[DefinitionLink, ...] = ()
     diagnostics: tuple[SemanticDiagnostic, ...] = ()
 
 
@@ -212,3 +230,17 @@ class QueryAnalysisService:
                 status=SemanticStatus.UNAVAILABLE,
             )
         return self._semantic_backend.analyze(text, self.dialect)
+
+    def definition_at(self, text: str, position: Position) -> SyntaxRange | None:
+        snapshot = self.semantic_snapshot(text)
+        matches = [link for link in snapshot.definitions if link.reference.start <= position < link.reference.end]
+        if not matches:
+            return None
+        match = min(
+            matches,
+            key=lambda link: (
+                link.reference.end.row - link.reference.start.row,
+                link.reference.end.col - link.reference.start.col,
+            ),
+        )
+        return match.definition

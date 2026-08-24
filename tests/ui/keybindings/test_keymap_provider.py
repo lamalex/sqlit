@@ -36,6 +36,7 @@ class TestKeymapProvider:
         assert keymap.action("new_connection") is not None
         assert keymap.action("window_leader_key") == "ctrl+w"
         assert keymap.leader("left", "window") == "h"
+        assert keymap.leader("definition", "g") == "d"
 
     def test_custom_keymap_can_be_set(self):
         """Custom keymap provider can be injected."""

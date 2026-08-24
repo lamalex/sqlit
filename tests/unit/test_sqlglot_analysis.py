@@ -7,8 +7,10 @@ import pytest
 from sqlit.domains.connections.providers.catalog import get_provider_spec
 from sqlit.domains.query.app.query_analysis import (
     AliasKind,
+    DefinitionKind,
     QueryAnalysisService,
     SemanticStatus,
+    SyntaxRange,
     TableReferenceKind,
 )
 from sqlit.domains.query.app.sqlglot_analysis import SQLGlotSemanticBackend
@@ -170,3 +172,132 @@ def test_derived_table_alias_has_consistent_qualified_name_metadata() -> None:
     derived = next(table for table in snapshot.tables if table.kind == TableReferenceKind.DERIVED)
     assert derived.name.parts == ("derived",)
     assert derived.name.quoted == (False,)
+
+
+@pytest.mark.parametrize(
+    ("sql", "reference", "definition", "kind"),
+    [
+        (
+            "WITH recent AS (SELECT id FROM users) SELECT recent.id FROM recent",
+            "recent.id",
+            "recent",
+            DefinitionKind.CTE,
+        ),
+        (
+            "SELECT u.id FROM users AS u",
+            "u.id",
+            "AS u",
+            DefinitionKind.RELATION_ALIAS,
+        ),
+        (
+            "SELECT total AS amount FROM orders ORDER BY amount",
+            "amount",
+            "AS amount",
+            DefinitionKind.PROJECTION_ALIAS,
+        ),
+    ],
+)
+def test_definition_at_links_semantic_references(
+    sql: str,
+    reference: str,
+    definition: str,
+    kind: DefinitionKind,
+) -> None:
+    service = QueryAnalysisService(
+        TextualQueryAnalysisBackend(QueryTextArea(sql, language="sql")),
+        dialect="sqlite",
+        semantic_backend=SQLGlotSemanticBackend(),
+    )
+    reference_offset = sql.rindex(reference)
+    definition_name = definition.rsplit(" ", 1)[-1]
+    definition_offset = sql.index(definition) + len(definition) - len(definition_name)
+
+    snapshot = service.semantic_snapshot(sql)
+    assert any(link.kind == kind for link in snapshot.definitions)
+    assert service.definition_at(sql, Position(0, reference_offset)) == SyntaxRange(
+        Position(0, definition_offset),
+        Position(0, definition_offset + len(definition_name)),
+        {
+            DefinitionKind.CTE: "cte_name",
+            DefinitionKind.RELATION_ALIAS: "relation_alias",
+            DefinitionKind.PROJECTION_ALIAS: "projection_alias",
+        }[kind],
+    )
+
+
+def test_relation_alias_lookup_honors_nested_scope_shadowing() -> None:
+    sql = "SELECT u.id FROM users AS u WHERE EXISTS (SELECT u.id FROM orders AS u)"
+    service = QueryAnalysisService(
+        TextualQueryAnalysisBackend(QueryTextArea(sql, language="sql")),
+        dialect="sqlite",
+        semantic_backend=SQLGlotSemanticBackend(),
+    )
+
+    inner_reference = sql.rindex("u.id")
+    inner_definition = sql.rindex("AS u") + 3
+    assert service.definition_at(sql, Position(0, inner_reference)) == SyntaxRange(
+        Position(0, inner_definition),
+        Position(0, inner_definition + 1),
+        "relation_alias",
+    )
+
+
+def test_relation_alias_lookup_resolves_correlated_outer_reference() -> None:
+    sql = "SELECT u.id FROM users AS u WHERE EXISTS (SELECT 1 FROM orders AS o WHERE o.user_id = u.id)"
+    service = QueryAnalysisService(
+        TextualQueryAnalysisBackend(QueryTextArea(sql, language="sql")),
+        dialect="postgres",
+        semantic_backend=SQLGlotSemanticBackend(),
+    )
+
+    outer_reference = sql.rindex("u.id")
+    outer_definition = sql.index("AS u") + 3
+    assert service.definition_at(sql, Position(0, outer_reference)) == SyntaxRange(
+        Position(0, outer_definition),
+        Position(0, outer_definition + 1),
+        "relation_alias",
+    )
+
+
+def test_definition_lookup_preserves_quoted_alias_ranges() -> None:
+    sql = 'SELECT "u".id FROM users AS "u"'
+    service = QueryAnalysisService(
+        TextualQueryAnalysisBackend(QueryTextArea(sql, language="sql")),
+        dialect="postgres",
+        semantic_backend=SQLGlotSemanticBackend(),
+    )
+    definition = sql.rindex('"u"')
+
+    assert service.definition_at(sql, Position(0, sql.index('"u"'))) == SyntaxRange(
+        Position(0, definition),
+        Position(0, definition + 3),
+        "relation_alias",
+    )
+
+
+def test_cte_definition_lookup_honors_nested_shadowing() -> None:
+    sql = "WITH item AS (SELECT 1) SELECT * FROM (WITH item AS (SELECT 2) SELECT * FROM item)"
+    service = QueryAnalysisService(
+        TextualQueryAnalysisBackend(QueryTextArea(sql, language="sql")),
+        dialect="sqlite",
+        semantic_backend=SQLGlotSemanticBackend(),
+    )
+    outer_definition = sql.index("item")
+    inner_definition = sql.index("item", outer_definition + 1)
+
+    assert service.definition_at(sql, Position(0, sql.rindex("item"))) == SyntaxRange(
+        Position(0, inner_definition),
+        Position(0, inner_definition + 4),
+        "cte_name",
+    )
+
+
+def test_resolved_table_indexes_survive_snapshot_source_sorting() -> None:
+    snapshot = SQLGlotSemanticBackend().analyze(
+        "SELECT derived.id FROM (SELECT id FROM users) AS derived",
+        "sqlite",
+    )
+
+    column = next(item for item in snapshot.columns if item.source_alias == "derived")
+    assert column.resolved_table is not None
+    assert snapshot.tables[column.resolved_table].kind == TableReferenceKind.DERIVED

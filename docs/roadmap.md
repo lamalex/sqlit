@@ -159,6 +159,8 @@ Failure to parse must never block editing or execution. The connected database r
 
 The initial Phase 3 backend now uses SQLGlot through `QueryAnalysisService` with explicit provider dialect metadata for SQLite, PostgreSQL, MySQL, SQL Server, BigQuery, and Snowflake. Strict successful parses produce immutable table, column, relation/projection alias, and CTE snapshots with scope IDs and CTE reference-to-definition links. Parse failures, token errors, and unknown dialects publish no best-effort entities and leave tree-sitter structural editing fully available.
 
+`gd` now navigates from CTE references, qualified relation aliases, and projection aliases in ORDER BY, GROUP BY, HAVING, and QUALIFY clauses to their exact declaration token. Resolution honors nested scope shadowing and correlated outer references. Unavailable semantics or a cursor without a definition leaves the selection unchanged and reports a warning.
+
 ## Phase 4: SQL-Native Workflows
 
 Build features that exploit syntax and live schema knowledge:

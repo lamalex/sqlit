@@ -315,6 +315,7 @@
         "line_start": "h",
         "line_end": "l",
         "first_non_blank": "s",
+        "definition": "d",
         "comment": "c"
       },
       "gc": {

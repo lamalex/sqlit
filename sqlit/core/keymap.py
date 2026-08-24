@@ -245,6 +245,7 @@ class DefaultKeymapProvider(KeymapProvider):
             LeaderCommandDef("h", "line_start", "Go to line start", "Go to", menu="g"),
             LeaderCommandDef("l", "line_end", "Go to line end", "Go to", menu="g"),
             LeaderCommandDef("s", "first_non_blank", "Go to first non-blank", "Go to", menu="g"),
+            LeaderCommandDef("d", "definition", "Go to definition", "Go to", menu="g"),
             LeaderCommandDef("c", "comment", "Toggle comment...", "Toggle", menu="g"),
             # gc comment menu (vim-style)
             LeaderCommandDef("c", "line", "Toggle line comment", "Comment", menu="gc"),
