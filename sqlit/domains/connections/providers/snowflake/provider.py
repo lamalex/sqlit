@@ -11,8 +11,10 @@ def _provider_factory(spec: ProviderSpec) -> DatabaseProvider:
 
     return build_adapter_provider(spec, SCHEMA, SnowflakeAdapter())
 
+
 SPEC = ProviderSpec(
     db_type="snowflake",
+    analysis_dialect="snowflake",
     display_name="Snowflake",
     schema_path=("sqlit.domains.connections.providers.snowflake.schema", "SCHEMA"),
     supports_ssh=False,

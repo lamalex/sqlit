@@ -157,6 +157,8 @@ Tree-sitter and SQLGlot serve different purposes:
 
 Failure to parse must never block editing or execution. The connected database remains authoritative for runtime validity.
 
+The initial Phase 3 backend now uses SQLGlot through `QueryAnalysisService` with explicit provider dialect metadata for SQLite, PostgreSQL, MySQL, SQL Server, BigQuery, and Snowflake. Strict successful parses produce immutable table, column, relation/projection alias, and CTE snapshots with scope IDs and CTE reference-to-definition links. Parse failures, token errors, and unknown dialects publish no best-effort entities and leave tree-sitter structural editing fully available.
+
 ## Phase 4: SQL-Native Workflows
 
 Build features that exploit syntax and live schema knowledge:

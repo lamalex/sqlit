@@ -24,6 +24,7 @@ def _provider_factory(spec: ProviderSpec) -> DatabaseProvider:
 
 SPEC = ProviderSpec(
     db_type="mysql",
+    analysis_dialect="mysql",
     display_name="MySQL",
     schema_path=("sqlit.domains.connections.providers.mysql.schema", "SCHEMA"),
     supports_ssh=True,

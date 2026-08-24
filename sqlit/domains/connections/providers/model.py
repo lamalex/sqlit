@@ -26,6 +26,7 @@ class ProviderMetadata:
     has_advanced_auth: bool
     requires_auth: bool
     url_schemes: tuple[str, ...]
+    analysis_dialect: str | None = None
 
 
 @dataclass(frozen=True)
@@ -48,8 +49,7 @@ class ConnectionFactory(Protocol):
 
 @runtime_checkable
 class QueryExecutor(Protocol):
-    def execute_query(self, conn: Any, query: str, max_rows: int | None = None) -> tuple[list[str], list[tuple], bool]:
-        ...
+    def execute_query(self, conn: Any, query: str, max_rows: int | None = None) -> tuple[list[str], list[tuple], bool]: ...
 
     def execute_non_query(self, conn: Any, query: str) -> int: ...
 
@@ -58,8 +58,7 @@ class QueryExecutor(Protocol):
 class Dialect(Protocol):
     def quote_identifier(self, name: str) -> str: ...
 
-    def build_select_query(self, table: str, limit: int, database: str | None = None, schema: str | None = None) -> str:
-        ...
+    def build_select_query(self, table: str, limit: int, database: str | None = None, schema: str | None = None) -> str: ...
 
     def format_table_name(self, schema: str | None, table: str) -> str: ...
 
@@ -84,36 +83,28 @@ class SchemaInspector(Protocol):
 
     def get_views(self, conn: Any, database: str | None = None) -> list[tuple[str, str]]: ...
 
-    def get_columns(
-        self, conn: Any, table: str, database: str | None = None, schema: str | None = None
-    ) -> list[Any]:
-        ...
+    def get_columns(self, conn: Any, table: str, database: str | None = None, schema: str | None = None) -> list[Any]: ...
 
 
 @runtime_checkable
 class IndexInspector(Protocol):
     def get_indexes(self, conn: Any, database: str | None = None) -> list[Any]: ...
 
-    def get_index_definition(self, conn: Any, index_name: str, table_name: str, database: str | None = None) -> dict[str, Any]:
-        ...
+    def get_index_definition(self, conn: Any, index_name: str, table_name: str, database: str | None = None) -> dict[str, Any]: ...
 
 
 @runtime_checkable
 class TriggerInspector(Protocol):
     def get_triggers(self, conn: Any, database: str | None = None) -> list[Any]: ...
 
-    def get_trigger_definition(
-        self, conn: Any, trigger_name: str, table_name: str, database: str | None = None
-    ) -> dict[str, Any]:
-        ...
+    def get_trigger_definition(self, conn: Any, trigger_name: str, table_name: str, database: str | None = None) -> dict[str, Any]: ...
 
 
 @runtime_checkable
 class SequenceInspector(Protocol):
     def get_sequences(self, conn: Any, database: str | None = None) -> list[Any]: ...
 
-    def get_sequence_definition(self, conn: Any, sequence_name: str, database: str | None = None) -> dict[str, Any]:
-        ...
+    def get_sequence_definition(self, conn: Any, sequence_name: str, database: str | None = None) -> dict[str, Any]: ...
 
 
 @runtime_checkable
@@ -162,6 +153,7 @@ class ProviderSpec:
     docker_detector: DockerDetector | None = None
     display_info: Callable[[ConnectionConfig], str] | None = None
     provider_factory: Callable[[ProviderSpec], DatabaseProvider] | None = None
+    analysis_dialect: str | None = None
 
 
 @dataclass

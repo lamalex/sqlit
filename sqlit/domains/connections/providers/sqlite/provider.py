@@ -11,8 +11,10 @@ def _provider_factory(spec: ProviderSpec) -> DatabaseProvider:
 
     return build_adapter_provider(spec, SCHEMA, SQLiteAdapter())
 
+
 SPEC = ProviderSpec(
     db_type="sqlite",
+    analysis_dialect="sqlite",
     display_name="SQLite",
     schema_path=("sqlit.domains.connections.providers.sqlite.schema", "SCHEMA"),
     supports_ssh=False,

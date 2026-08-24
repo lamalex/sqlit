@@ -20,9 +20,7 @@ def _provider_factory(spec: ProviderSpec) -> DatabaseProvider:
     return build_adapter_provider(spec, SCHEMA, BigQueryAdapter())
 
 
-def _bigquery_docker_post_process(
-    creds: DockerCredentials, env_vars: Mapping[str, str]
-) -> DockerCredentials:
+def _bigquery_docker_post_process(creds: DockerCredentials, env_vars: Mapping[str, str]) -> DockerCredentials:
     """Extract project ID from emulator command args or use default."""
     # The emulator typically uses --project flag, but env vars take precedence
     # Default to 'test-project' which is common for local development
@@ -35,6 +33,7 @@ def _bigquery_docker_post_process(
 
 SPEC = ProviderSpec(
     db_type="bigquery",
+    analysis_dialect="bigquery",
     display_name="Google BigQuery",
     schema_path=("sqlit.domains.connections.providers.bigquery.schema", "SCHEMA"),
     supports_ssh=False,

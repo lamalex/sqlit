@@ -12,8 +12,10 @@ def _provider_factory(spec: ProviderSpec) -> DatabaseProvider:
 
     return build_adapter_provider(spec, SCHEMA, SQLServerAdapter())
 
+
 SPEC = ProviderSpec(
     db_type="mssql",
+    analysis_dialect="tsql",
     display_name="SQL Server",
     schema_path=("sqlit.domains.connections.providers.mssql.schema", "SCHEMA"),
     supports_ssh=True,

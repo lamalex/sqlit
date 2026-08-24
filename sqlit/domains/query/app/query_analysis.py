@@ -35,6 +35,88 @@ class SemanticTarget(Enum):
     TABLE_EXPRESSION = "table_expression"
 
 
+class SemanticStatus(Enum):
+    EXACT = "exact"
+    UNAVAILABLE = "unavailable"
+
+
+class TableReferenceKind(Enum):
+    TABLE = "table"
+    CTE = "cte"
+    DERIVED = "derived"
+    TABLE_FUNCTION = "table_function"
+
+
+class AliasKind(Enum):
+    RELATION = "relation"
+    PROJECTION = "projection"
+
+
+@dataclass(frozen=True)
+class QualifiedName:
+    parts: tuple[str, ...]
+    quoted: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class TableReference:
+    statement: int
+    scope: int
+    name: QualifiedName
+    alias: str | None
+    kind: TableReferenceKind
+    cte_id: int | None
+    range: SyntaxRange | None
+
+
+@dataclass(frozen=True)
+class ColumnReference:
+    statement: int
+    scope: int
+    name: QualifiedName
+    source_alias: str | None
+    resolved_table: int | None
+    is_star: bool
+    range: SyntaxRange | None
+
+
+@dataclass(frozen=True)
+class AliasReference:
+    statement: int
+    scope: int
+    name: str
+    kind: AliasKind
+    range: SyntaxRange | None
+
+
+@dataclass(frozen=True)
+class CteDefinition:
+    id: int
+    statement: int
+    scope: int
+    name: str
+    columns: tuple[str, ...]
+    recursive: bool
+    range: SyntaxRange | None
+
+
+@dataclass(frozen=True)
+class SemanticDiagnostic:
+    message: str
+
+
+@dataclass(frozen=True)
+class SemanticSnapshot:
+    parser_version: str
+    dialect: str | None
+    status: SemanticStatus
+    tables: tuple[TableReference, ...] = ()
+    columns: tuple[ColumnReference, ...] = ()
+    aliases: tuple[AliasReference, ...] = ()
+    ctes: tuple[CteDefinition, ...] = ()
+    diagnostics: tuple[SemanticDiagnostic, ...] = ()
+
+
 @dataclass(frozen=True)
 class QueryDiagnostic:
     """A parser-neutral query diagnostic."""
@@ -53,17 +135,17 @@ class QueryAnalysisBackend(Protocol):
 
     def parent_range(self, selection: SyntaxRange) -> SyntaxRange | None: ...
 
-    def sibling_range(
-        self, selection: SyntaxRange, direction: int
-    ) -> SyntaxRange | None: ...
+    def sibling_range(self, selection: SyntaxRange, direction: int) -> SyntaxRange | None: ...
 
-    def semantic_range(
-        self, position: Position, target: SemanticTarget
-    ) -> SyntaxRange | None: ...
+    def semantic_range(self, position: Position, target: SemanticTarget) -> SyntaxRange | None: ...
 
     def semantic_ranges(self, position: Position) -> tuple[SyntaxRange, ...]: ...
 
     def diagnostics(self) -> tuple[QueryDiagnostic, ...]: ...
+
+
+class QuerySemanticBackend(Protocol):
+    def analyze(self, text: str, dialect: str) -> SemanticSnapshot: ...
 
 
 class QueryAnalysisService:
@@ -74,8 +156,10 @@ class QueryAnalysisService:
         backend: QueryAnalysisBackend,
         *,
         dialect: str | None = None,
+        semantic_backend: QuerySemanticBackend | None = None,
     ) -> None:
         self._backend = backend
+        self._semantic_backend = semantic_backend
         self.dialect = dialect
 
     def node_at(self, position: Position) -> SyntaxRange | None:
@@ -87,16 +171,12 @@ class QueryAnalysisService:
     def parent_range(self, selection: SyntaxRange) -> SyntaxRange | None:
         return self._backend.parent_range(selection)
 
-    def sibling_range(
-        self, selection: SyntaxRange, direction: int
-    ) -> SyntaxRange | None:
+    def sibling_range(self, selection: SyntaxRange, direction: int) -> SyntaxRange | None:
         if direction == 0:
             return selection
         return self._backend.sibling_range(selection, 1 if direction > 0 else -1)
 
-    def semantic_range(
-        self, position: Position, target: SemanticTarget
-    ) -> SyntaxRange | None:
+    def semantic_range(self, position: Position, target: SemanticTarget) -> SyntaxRange | None:
         return self._backend.semantic_range(position, target)
 
     def semantic_ranges(self, position: Position) -> tuple[SyntaxRange, ...]:
@@ -123,3 +203,12 @@ class QueryAnalysisService:
 
     def diagnostics(self) -> tuple[QueryDiagnostic, ...]:
         return self._backend.diagnostics()
+
+    def semantic_snapshot(self, text: str) -> SemanticSnapshot:
+        if self._semantic_backend is None or self.dialect is None:
+            return SemanticSnapshot(
+                parser_version="",
+                dialect=self.dialect,
+                status=SemanticStatus.UNAVAILABLE,
+            )
+        return self._semantic_backend.analyze(text, self.dialect)

@@ -55,6 +55,7 @@ def _build_metadata(spec: ProviderSpec, url_schemes: tuple[str, ...]) -> Provide
         has_advanced_auth=spec.has_advanced_auth,
         requires_auth=spec.requires_auth,
         url_schemes=url_schemes,
+        analysis_dialect=spec.analysis_dialect,
     )
 
 

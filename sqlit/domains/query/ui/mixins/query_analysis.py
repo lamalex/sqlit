@@ -29,10 +29,16 @@ class QueryAnalysisMixin:
     def _get_query_analysis_service(self: QueryMixinHost) -> QueryAnalysisService:
         provider = getattr(self, "current_provider", None)
         metadata = getattr(provider, "metadata", None)
-        dialect = getattr(metadata, "db_type", None)
+        dialect = getattr(metadata, "analysis_dialect", None)
         if self._query_analysis_service is None:
+            from sqlit.domains.query.app.sqlglot_analysis import SQLGlotSemanticBackend
+
             backend = TextualQueryAnalysisBackend(self.query_input)
-            self._query_analysis_service = QueryAnalysisService(backend, dialect=dialect)
+            self._query_analysis_service = QueryAnalysisService(
+                backend,
+                dialect=dialect,
+                semantic_backend=SQLGlotSemanticBackend(),
+            )
         else:
             self._query_analysis_service.dialect = dialect
         return self._query_analysis_service
@@ -180,15 +186,11 @@ class QueryAnalysisMixin:
             handle_result,
         )
 
-    def _select_semantic_target(
-        self: QueryMixinHost, target_type: SemanticTarget
-    ) -> None:
+    def _select_semantic_target(self: QueryMixinHost, target_type: SemanticTarget) -> None:
         self._clear_leader_pending()
         current = self._syntax_selection_base()
         row, col = self._query_logical_head()
-        target = self._get_query_analysis_service().semantic_range(
-            Position(row, col), target_type
-        )
+        target = self._get_query_analysis_service().semantic_range(Position(row, col), target_type)
         if target is not None:
             self._apply_syntax_selection(target, remember=current)
 

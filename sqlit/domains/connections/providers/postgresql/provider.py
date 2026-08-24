@@ -12,8 +12,10 @@ def _provider_factory(spec: ProviderSpec) -> DatabaseProvider:
 
     return build_adapter_provider(spec, SCHEMA, PostgreSQLAdapter())
 
+
 SPEC = ProviderSpec(
     db_type="postgresql",
+    analysis_dialect="postgres",
     display_name="PostgreSQL",
     schema_path=("sqlit.domains.connections.providers.postgresql.schema", "SCHEMA"),
     supports_ssh=True,
