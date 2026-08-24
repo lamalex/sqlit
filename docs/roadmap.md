@@ -133,6 +133,8 @@ The initial structural slice now supports parent expansion, history-based shrink
 
 Semantic match commands now select statements (`mS`), CTE definitions and bodies (`me`/`mE`), subqueries (`mq`), SELECT lists (`ml`), the clause at the logical head (`mc`), JOIN conditions (`mj`), and table expressions (`mt`). Cross-style fixtures cover common SQLite, PostgreSQL, MySQL, SQL Server, BigQuery, and Snowflake shapes plus incomplete SQL; unsupported dialect grammar degrades to diagnostics or no semantic match without blocking editing.
 
+Phase 2 hardening now pins a dialect capability matrix rather than only asserting that parsing does not crash. It preserves statement selection for unsupported MERGE and COPY forms, discovers mutation targets, rejects truncated quoted table ranges, prevents malformed JOIN predicates from absorbing later clauses, and guards responsiveness on large multiline statements. Known generic-grammar gaps such as QUALIFY, APPLY, and some LATERAL forms remain explicit candidates for the dialect-aware Phase 3 backend.
+
 The spike succeeds when these commands remain responsive and useful across representative SQLite, PostgreSQL, MySQL, SQL Server, BigQuery, and Snowflake queries, including incomplete SQL.
 
 ## Phase 3: Embedded SQL Semantics
