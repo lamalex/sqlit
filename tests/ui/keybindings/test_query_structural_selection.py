@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import OptionList, Static
+from textual.widgets import OptionList
 
 from sqlit.domains.query.ui.screens import SyntaxObjectPickerScreen
 from sqlit.domains.shell.app.main import SSMSTUI
@@ -243,8 +243,7 @@ async def test_syntax_picker_lists_objects_from_the_outer_statement() -> None:
         assert isinstance(app.screen, SyntaxObjectPickerScreen)
         option_list = app.screen.query_one("#syntax-object-picker-list", OptionList)
         assert option_list.option_count == 13
-        preview = app.screen.query_one("#syntax-object-picker-preview", Static)
-        assert "left join on 1=1" in str(preview.content)
+        assert app._ordered_selection(app.query_input.selection) == ((0, 0), (9, 29))
 
 
 @pytest.mark.asyncio
@@ -260,14 +259,15 @@ async def test_syntax_picker_filters_and_selects_join_condition() -> None:
         await pilot.press("alt+s", "j", "o", "i", "n")
         option_list = app.screen.query_one("#syntax-object-picker-list", OptionList)
         assert option_list.option_count == 1
-        preview = app.screen.query_one("#syntax-object-picker-preview", Static)
-        assert str(preview.content) == "1=1"
-        assert app._query_selection == original
+        assert app._ordered_selection(app.query_input.selection) == ((8, 13), (8, 16))
 
         await pilot.press("enter")
         await pilot.pause()
 
         assert app._ordered_selection(app.query_input.selection) == ((8, 13), (8, 16))
+
+        await pilot.press("alt+i")
+        assert app._query_selection == original
 
 
 @pytest.mark.asyncio
@@ -283,3 +283,19 @@ async def test_cancelling_syntax_picker_preserves_selection() -> None:
         await pilot.press("alt+s", "escape")
 
         assert app._query_selection == original
+
+
+@pytest.mark.asyncio
+async def test_syntax_picker_navigation_updates_live_selection() -> None:
+    app = _make_app()
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = "SELECT foo FROM widgets;"
+        app._set_normal_selection((0, 8))
+
+        await pilot.press("alt+s")
+        assert app._ordered_selection(app.query_input.selection) == ((0, 0), (0, 24))
+
+        await pilot.press("down")
+        assert app._ordered_selection(app.query_input.selection) == ((0, 7), (0, 10))

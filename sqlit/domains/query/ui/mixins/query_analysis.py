@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from sqlit.core.vim import VimMode
@@ -141,15 +142,41 @@ class QueryAnalysisMixin:
             self.notify("No SQL objects found at cursor", severity="warning")
             return
         current = self._syntax_selection_base()
+        original_snapshot = self._query_selection
+        original_syntax_current = self._syntax_selection_current
+
+        def apply_preview(target: SyntaxRange | None) -> None:
+            snapshot = original_snapshot
+            if target is not None:
+                end = (target.end.row, target.end.col)
+                snapshot = replace(
+                    original_snapshot,
+                    start=(target.start.row, target.start.col),
+                    end=end,
+                    logical_cursor=self._position_before(end),
+                    normal_selection_primary=False,
+                    vim_mode=VimMode.NORMAL,
+                    visual_anchor=None,
+                    visual_cursor=None,
+                    visual_line_anchor_row=None,
+                )
+            self._applying_syntax_selection = True
+            try:
+                self._apply_query_selection(snapshot)
+            finally:
+                self._applying_syntax_selection = False
+            self._syntax_selection_current = original_syntax_current
 
         def handle_result(target: SyntaxRange | None) -> None:
             if target is None:
+                apply_preview(None)
                 return
+            apply_preview(None)
             self._apply_syntax_selection(target, remember=current)
             self.notify(f"Selected {syntax_kind_label(target.kind)}")
 
         self.push_screen(
-            SyntaxObjectPickerScreen(self.query_input.text, selections),
+            SyntaxObjectPickerScreen(self.query_input.text, selections, apply_preview),
             handle_result,
         )
 

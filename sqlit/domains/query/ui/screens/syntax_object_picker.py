@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from rich.markup import escape
-from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
@@ -45,7 +45,6 @@ class SyntaxPickerEntry:
     selection: SyntaxRange
     label: str
     snippet: str
-    source: str
 
 
 class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
@@ -70,7 +69,7 @@ class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
         width: 84;
         max-width: 92%;
         height: auto;
-        max-height: 36;
+        max-height: 28;
     }
 
     #syntax-object-picker-description {
@@ -81,7 +80,7 @@ class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
 
     #syntax-object-picker-body {
         height: auto;
-        max-height: 30;
+        max-height: 22;
     }
 
     #syntax-object-picker-input {
@@ -92,34 +91,22 @@ class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
 
     #syntax-object-picker-list {
         height: auto;
-        max-height: 13;
+        max-height: 17;
         border: none;
         background: $surface;
     }
-
-    #syntax-object-picker-preview-label {
-        height: auto;
-        margin-top: 1;
-        color: $text-muted;
-    }
-
-    #syntax-object-picker-preview-scroll {
-        height: auto;
-        max-height: 9;
-        border: solid $panel;
-        background: $boost;
-        padding: 0 1;
-    }
-
-    #syntax-object-picker-preview {
-        height: auto;
-    }
     """
 
-    def __init__(self, text: str, selections: tuple[SyntaxRange, ...]) -> None:
+    def __init__(
+        self,
+        text: str,
+        selections: tuple[SyntaxRange, ...],
+        preview: Callable[[SyntaxRange | None], None],
+    ) -> None:
         super().__init__()
         self._entries = [self._entry(text, selection) for selection in selections]
         self._filtered: list[tuple[int, SyntaxPickerEntry]] = list(enumerate(self._entries))
+        self._preview = preview
 
     @staticmethod
     def _entry(text: str, selection: SyntaxRange) -> SyntaxPickerEntry:
@@ -134,7 +121,7 @@ class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
         if len(snippet) > 58:
             snippet = f"{snippet[:55]}..."
         label = syntax_kind_label(selection.kind)
-        return SyntaxPickerEntry(selection, label, snippet, source)
+        return SyntaxPickerEntry(selection, label, snippet)
 
     def compose(self) -> ComposeResult:
         shortcuts = [("Select", "<enter>"), ("Cancel", "<esc>")]
@@ -150,15 +137,12 @@ class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
             with Vertical(id="syntax-object-picker-body"):
                 yield Input(placeholder="Filter SQL objects...", id="syntax-object-picker-input")
                 yield OptionList(*self._render_options(), id="syntax-object-picker-list")
-                yield Static(id="syntax-object-picker-preview-label")
-                with VerticalScroll(id="syntax-object-picker-preview-scroll"):
-                    yield Static(id="syntax-object-picker-preview")
 
     def on_mount(self) -> None:
         option_list = self.query_one("#syntax-object-picker-list", OptionList)
         if option_list.option_count:
             option_list.highlighted = 0
-            self._update_preview(self._filtered[0][0])
+            self._preview(self._filtered[0][1].selection)
         self.query_one("#syntax-object-picker-input", Input).focus()
 
     def _render_options(self) -> list[Option]:
@@ -183,22 +167,9 @@ class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
             option_list.add_option(option)
         option_list.highlighted = 0 if self._filtered else None
         if self._filtered:
-            self._update_preview(self._filtered[0][0])
+            self._preview(self._filtered[0][1].selection)
         else:
-            self.query_one("#syntax-object-picker-preview-label", Static).update(
-                "No matching SQL objects"
-            )
-            self.query_one("#syntax-object-picker-preview", Static).update("")
-
-    def _update_preview(self, entry_index: int) -> None:
-        entry = self._entries[entry_index]
-        start = entry.selection.start
-        end = entry.selection.end
-        coordinates = f"{start.row + 1}:{start.col + 1}-{end.row + 1}:{end.col + 1}"
-        self.query_one("#syntax-object-picker-preview-label", Static).update(
-            f"[bold]{escape(entry.label)}[/]  [dim]{coordinates}[/]"
-        )
-        self.query_one("#syntax-object-picker-preview", Static).update(Text(entry.source))
+            self._preview(None)
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "syntax-object-picker-input":
@@ -215,7 +186,7 @@ class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
 
     def on_option_list_option_highlighted(self, event: OptionList.OptionHighlighted) -> None:
         if event.option.id is not None:
-            self._update_preview(int(event.option.id))
+            self._preview(self._entries[int(event.option.id)].selection)
 
     def action_cursor_down(self) -> None:
         option_list = self.query_one("#syntax-object-picker-list", OptionList)
