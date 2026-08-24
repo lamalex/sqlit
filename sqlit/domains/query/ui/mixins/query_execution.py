@@ -764,12 +764,14 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
 
     def action_clear_query(self: QueryMixinHost) -> None:
         """Clear the query input."""
+        self._reset_query_jump_history()
         self.query_input.text = ""
         self._set_normal_selection((0, 0))
 
     def action_new_query(self: QueryMixinHost) -> None:
         """Start a new query (clear input and results)."""
         def start_new_query() -> None:
+            self._reset_query_jump_history()
             self.query_input.text = ""
             self._set_normal_selection((0, 0))
             try:
@@ -788,6 +790,7 @@ class QueryExecutionMixin(ProcessWorkerLifecycleMixin):
 
     def _apply_history_query(self: QueryMixinHost, query: str) -> None:
         """Load a query into the editor and restore cursor position if possible."""
+        self._reset_query_jump_history()
         # Initialize cursor cache if needed
         if self._query_cursor_cache is None:
             self._query_cursor_cache = {}

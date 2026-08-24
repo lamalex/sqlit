@@ -43,6 +43,8 @@ class QueryNormalModeState(State):
         self.allows("query_search_next", help="Next search match")
         self.allows("query_search_previous", help="Previous search match")
         self.allows("show_history", label="History", help="Query history")
+        self.allows("query_jump_back", help="Go to the previous query location")
+        self.allows("query_jump_forward", help="Go to the next query location")
         self.allows(
             "edit_query_in_editor",
             help="Open current query in your terminal editor",

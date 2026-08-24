@@ -25,6 +25,8 @@ class QueryAnalysisMixin:
     _syntax_selection_history: list[tuple[SyntaxRange, QuerySelectionSnapshot]] | None = None
     _syntax_selection_current: SyntaxRange | None = None
     _applying_syntax_selection: bool = False
+    _query_jump_back: list[QuerySelectionSnapshot] | None = None
+    _query_jump_forward: list[QuerySelectionSnapshot] | None = None
 
     def _get_query_analysis_service(self: QueryMixinHost) -> QueryAnalysisService:
         provider = getattr(self, "current_provider", None)
@@ -47,6 +49,44 @@ class QueryAnalysisMixin:
         if self._syntax_selection_history is not None:
             self._syntax_selection_history.clear()
         self._syntax_selection_current = None
+
+    def _reset_query_jump_history(self: QueryMixinHost) -> None:
+        if self._query_jump_back is not None:
+            self._query_jump_back.clear()
+        if self._query_jump_forward is not None:
+            self._query_jump_forward.clear()
+
+    def _record_query_jump(self: QueryMixinHost) -> None:
+        if self._query_jump_back is None:
+            self._query_jump_back = []
+        self._query_jump_back.append(self._query_selection)
+        del self._query_jump_back[:-100]
+        if self._query_jump_forward is not None:
+            self._query_jump_forward.clear()
+
+    def _restore_query_jump(self: QueryMixinHost, *, forward: bool) -> None:
+        source = self._query_jump_forward if forward else self._query_jump_back
+        if not source:
+            return
+        destination = self._query_jump_back if forward else self._query_jump_forward
+        if destination is None:
+            destination = []
+            if forward:
+                self._query_jump_back = destination
+            else:
+                self._query_jump_forward = destination
+        destination.append(self._query_selection)
+        del destination[:-100]
+        self._reset_syntax_selection_history()
+        self._apply_query_selection(source.pop(), update_chrome=True)
+
+    def action_query_jump_back(self: QueryMixinHost) -> None:
+        """Restore the selection before the previous semantic jump."""
+        self._restore_query_jump(forward=False)
+
+    def action_query_jump_forward(self: QueryMixinHost) -> None:
+        """Restore the selection after the next semantic jump."""
+        self._restore_query_jump(forward=True)
 
     def _current_syntax_selection(self: QueryMixinHost) -> SyntaxRange:
         start, end = self._ordered_selection(self.query_input.selection)
@@ -146,6 +186,7 @@ class QueryAnalysisMixin:
         if target is None:
             self.notify("No SQL definition found at cursor", severity="warning")
             return
+        self._record_query_jump()
         self._reset_syntax_selection_history()
         self._set_normal_selection((target.start.row, target.start.col))
 

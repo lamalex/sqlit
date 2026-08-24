@@ -108,3 +108,98 @@ async def test_gd_leaves_cursor_unchanged_when_semantics_are_unavailable() -> No
 
         assert app._query_logical_head() == (0, 7)
         assert not app._leader_pending
+        assert not app._query_jump_back
+
+
+@pytest.mark.asyncio
+async def test_query_jump_history_restores_exact_visual_selection() -> None:
+    app = _make_app()
+    app.current_provider = SimpleNamespace(metadata=SimpleNamespace(analysis_dialect="sqlite"))
+    sql = "WITH recent AS (SELECT id FROM users) SELECT recent.id FROM recent"
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = sql
+        app._set_normal_selection((0, sql.index("recent.id")))
+        await pilot.press("v", "l")
+        source = app._query_selection
+
+        await pilot.press("g", "d")
+        await pilot.pause()
+        target = app._query_selection
+        assert target != source
+
+        await pilot.press("ctrl+o")
+        await pilot.pause()
+        assert app._query_selection == source
+
+        await pilot.press("ctrl+i")
+        await pilot.pause()
+        assert app._query_selection == target
+
+
+@pytest.mark.asyncio
+async def test_new_definition_jump_clears_forward_history() -> None:
+    app = _make_app()
+    app.current_provider = SimpleNamespace(metadata=SimpleNamespace(analysis_dialect="sqlite"))
+    sql = "WITH recent AS (SELECT id FROM users) SELECT recent.id FROM recent ORDER BY recent.id"
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = sql
+        app._set_normal_selection((0, sql.index("recent.id")))
+        await pilot.press("g", "d", "ctrl+o")
+
+        app._set_normal_selection((0, sql.rindex("recent.id")))
+        await pilot.press("g", "d")
+        await pilot.pause()
+        second_target = app._query_selection
+
+        assert app._query_jump_forward == []
+        await pilot.press("ctrl+i")
+        await pilot.pause()
+        assert app._query_selection == second_target
+
+
+@pytest.mark.asyncio
+async def test_query_text_change_clears_jump_history() -> None:
+    app = _make_app()
+    app.current_provider = SimpleNamespace(metadata=SimpleNamespace(analysis_dialect="sqlite"))
+    sql = "WITH recent AS (SELECT id FROM users) SELECT id FROM recent"
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = sql
+        app._set_normal_selection((0, sql.rindex("recent")))
+        await pilot.press("g", "d")
+        await pilot.pause()
+        assert app._query_jump_back
+
+        app.query_input.text = f"{sql} "
+        await pilot.pause()
+        changed_selection = app._query_selection
+
+        assert app._query_jump_back == []
+        await pilot.press("ctrl+o")
+        await pilot.pause()
+        assert app._query_selection == changed_selection
+
+
+@pytest.mark.asyncio
+async def test_loading_same_history_query_clears_jump_history() -> None:
+    app = _make_app()
+    app.current_provider = SimpleNamespace(metadata=SimpleNamespace(analysis_dialect="sqlite"))
+    sql = "WITH recent AS (SELECT id FROM users) SELECT id FROM recent"
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = sql
+        app._set_normal_selection((0, sql.rindex("recent")))
+        await pilot.press("g", "d")
+        await pilot.pause()
+        assert app._query_jump_back
+
+        app._apply_history_query(sql)
+
+        assert not app._query_jump_back
+        assert not app._query_jump_forward

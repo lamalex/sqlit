@@ -53,6 +53,8 @@ class QueryVisualModeState(State):
         self.allows("cursor_till_char_back", help="Move till char backward")
         self.allows("g_leader_key", help="Go motions (menu)")
         self.allows("g_first_line", help="Go to first line")
+        self.allows("query_jump_back", help="Go to the previous query location")
+        self.allows("query_jump_forward", help="Go to the next query location")
 
     def get_display_bindings(self, app: InputContext) -> tuple[list[DisplayBinding], list[DisplayBinding]]:
         left: list[DisplayBinding] = []

@@ -95,9 +95,9 @@ class TestQueryHistoryCursorMemory:
             app._handle_history_result(("select", new_query))
             await pilot.pause()
 
-            # Verify cursor is at end of query
-            expected_col = len(new_query)
-            assert app.query_input.cursor_location == (0, expected_col)
+            # NORMAL mode places the logical head on the final character.
+            expected_col = len(new_query) - 1
+            assert app._query_logical_head() == (0, expected_col)
 
     @pytest.mark.asyncio
     async def test_cursor_position_for_multiline_query(self):

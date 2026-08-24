@@ -52,6 +52,8 @@ class QueryStateProtocol(Protocol):
     _syntax_selection_history: list[Any] | None
     _syntax_selection_current: Any | None
     _applying_syntax_selection: bool
+    _query_jump_back: list[Any] | None
+    _query_jump_forward: list[Any] | None
 
 
 class QueryActionsProtocol(Protocol):
@@ -85,6 +87,9 @@ class QueryActionsProtocol(Protocol):
         ...
 
     def _reset_syntax_selection_history(self) -> None:
+        ...
+
+    def _reset_query_jump_history(self) -> None:
         ...
 
     def action_execute_query(self) -> None:

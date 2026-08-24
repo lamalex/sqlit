@@ -35,6 +35,8 @@ class TestKeymapProvider:
         # Verify action keys exist (don't check specific keys)
         assert keymap.action("new_connection") is not None
         assert keymap.action("window_leader_key") == "ctrl+w"
+        assert keymap.action("query_jump_back") == "ctrl+o"
+        assert keymap.action("query_jump_forward") == "ctrl+i"
         assert keymap.leader("left", "window") == "h"
         assert keymap.leader("definition", "g") == "d"
 

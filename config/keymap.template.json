@@ -78,6 +78,8 @@
         "g_leader_key": "g",
         "show_history": "backspace",
         "new_query": "ctrl+n",
+        "query_jump_back": "ctrl+o",
+        "query_jump_forward": "ctrl+i",
         "query_search": "/",
         "query_search_next": "n",
         "query_search_previous": "N",
@@ -164,6 +166,8 @@
         "cursor_line_end": "$",
         "cursor_last_line": "G",
         "g_leader_key": "g",
+        "query_jump_back": "ctrl+o",
+        "query_jump_forward": "ctrl+i",
         "cursor_matching_bracket": "%",
         "cursor_find_char": "f",
         "cursor_find_char_back": "F",
@@ -195,6 +199,8 @@
         ],
         "cursor_last_line": "G",
         "g_leader_key": "g",
+        "query_jump_back": "ctrl+o",
+        "query_jump_forward": "ctrl+i",
         "visual_line_execute": "enter"
       },
       "autocomplete": {

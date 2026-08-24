@@ -161,6 +161,8 @@ The initial Phase 3 backend now uses SQLGlot through `QueryAnalysisService` with
 
 `gd` now navigates from CTE references, qualified relation aliases, and projection aliases in ORDER BY, GROUP BY, HAVING, and QUALIFY clauses to their exact declaration token. Resolution honors nested scope shadowing and correlated outer references. Unavailable semantics or a cursor without a definition leaves the selection unchanged and reports a warning.
 
+Semantic navigation maintains a dedicated bounded jump list: `Ctrl+o` restores the exact selection before a `gd` jump and `Ctrl+i` moves forward again. The list is independent of edit undo and structural selection history, truncates its forward branch after a new jump, and resets whenever query text or the loaded history document changes so stale source positions cannot be restored.
+
 ## Phase 4: SQL-Native Workflows
 
 Build features that exploit syntax and live schema knowledge:

@@ -129,6 +129,10 @@ class AutocompleteMixin(AutocompleteSchemaMixin, AutocompleteSuggestionsMixin):
         if callable(update_document_title):
             update_document_title()
 
+        reset_jump_history = getattr(self, "_reset_query_jump_history", None)
+        if reset_jump_history is not None:
+            reset_jump_history()
+
         # Mark that text just changed so selection_changed knows to ignore cursor movement
         self._text_just_changed = True
 
