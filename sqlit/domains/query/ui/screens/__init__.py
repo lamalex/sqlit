@@ -10,6 +10,7 @@ from .editor_picker import EditorPickerScreen
 from .query_history import QueryHistoryScreen
 from .query_library import QueryLibraryScreen
 from .saved_query_name import SavedQueryNameScreen
+from .query_rename import QueryRenameScreen
 from .query_search import QuerySearchScreen
 from .surround_menu import SurroundMenuScreen
 from .syntax_object_picker import SyntaxObjectPickerScreen, syntax_kind_label
@@ -23,6 +24,7 @@ __all__ = [
     "QueryHistoryScreen",
     "SavedQueryOverwriteScreen",
     "SavedQueryNameScreen",
+    "QueryRenameScreen",
     "QuerySearchScreen",
     "SurroundMenuScreen",
     "SyntaxObjectPickerScreen",

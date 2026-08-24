@@ -323,6 +323,7 @@
         "first_non_blank": "s",
         "definition": "d",
         "references": "r",
+        "rename": "R",
         "comment": "c"
       },
       "gc": {

@@ -40,6 +40,7 @@ class TestKeymapProvider:
         assert keymap.leader("left", "window") == "h"
         assert keymap.leader("definition", "g") == "d"
         assert keymap.leader("references", "g") == "r"
+        assert keymap.leader("rename", "g") == "R"
 
     def test_custom_keymap_can_be_set(self):
         """Custom keymap provider can be injected."""

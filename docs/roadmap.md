@@ -165,6 +165,8 @@ Semantic navigation maintains a dedicated bounded jump list: `Ctrl+o` restores t
 
 `gr` finds references from either a CTE/alias declaration or one of its linked uses. A single reference jumps directly; multiple references use a filterable picker with live editor preview, exact cancellation, and one committed jump-list entry. Exact declaration ranges keep nested and shadowed symbols isolated without exposing SQLGlot objects to the UI.
 
+`gR` performs a conservative semantic rename for CTEs, relation aliases, and projection aliases. The prompt previews the occurrence count, preserves and escapes each occurrence's existing quote style, applies only the exact declaration group, and commits as one undoable text change. The candidate must strictly parse and reproduce the same declaration/reference topology; collisions, scope capture, stale prompts, invalid bare identifiers, and unavailable semantics leave the query unchanged.
+
 ## Phase 4: SQL-Native Workflows
 
 Build features that exploit syntax and live schema knowledge:

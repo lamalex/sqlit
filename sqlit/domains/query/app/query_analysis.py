@@ -118,6 +118,16 @@ class DefinitionLink:
 
 
 @dataclass(frozen=True)
+class SemanticSymbol:
+    statement: int
+    scope: int
+    name: str
+    kind: DefinitionKind
+    declaration: SyntaxRange
+    references: tuple[SyntaxRange, ...]
+
+
+@dataclass(frozen=True)
 class SemanticDiagnostic:
     message: str
 
@@ -265,3 +275,55 @@ class QueryAnalysisService:
             seen.add(link.reference)
             references.append(link.reference)
         return tuple(references)
+
+    def symbol_at(self, text: str, position: Position) -> SemanticSymbol | None:
+        snapshot = self.semantic_snapshot(text)
+        link_matches = [(link, candidate) for link in snapshot.definitions for candidate in (link.reference, link.definition) if candidate.start <= position < candidate.end]
+        if link_matches:
+            link, _candidate = min(
+                link_matches,
+                key=lambda item: (
+                    item[1].end.row - item[1].start.row,
+                    item[1].end.col - item[1].start.col,
+                ),
+            )
+            references = tuple(item.reference for item in snapshot.definitions if item.definition == link.definition)
+            return SemanticSymbol(
+                statement=link.statement,
+                scope=link.scope,
+                name=link.name,
+                kind=link.kind,
+                declaration=link.definition,
+                references=references,
+            )
+
+        for cte in snapshot.ctes:
+            if cte.name_range is not None and cte.name_range.start <= position < cte.name_range.end:
+                return SemanticSymbol(
+                    statement=cte.statement,
+                    scope=cte.scope,
+                    name=cte.name,
+                    kind=DefinitionKind.CTE,
+                    declaration=cte.name_range,
+                    references=(),
+                )
+        for alias in snapshot.aliases:
+            if alias.range is None or not alias.range.start <= position < alias.range.end:
+                continue
+            return SemanticSymbol(
+                statement=alias.statement,
+                scope=alias.scope,
+                name=alias.name,
+                kind=(DefinitionKind.RELATION_ALIAS if alias.kind == AliasKind.RELATION else DefinitionKind.PROJECTION_ALIAS),
+                declaration=alias.range,
+                references=(),
+            )
+        return None
+
+    def symbol_has_conflict(self, text: str, symbol: SemanticSymbol) -> bool:
+        snapshot = self.semantic_snapshot(text)
+        name = symbol.name.casefold()
+        if symbol.kind == DefinitionKind.CTE:
+            return any(cte.statement == symbol.statement and cte.name.casefold() == name and cte.name_range != symbol.declaration for cte in snapshot.ctes)
+        alias_kind = AliasKind.RELATION if symbol.kind == DefinitionKind.RELATION_ALIAS else AliasKind.PROJECTION
+        return any(alias.statement == symbol.statement and alias.scope == symbol.scope and alias.kind == alias_kind and alias.name.casefold() == name and alias.range != symbol.declaration for alias in snapshot.aliases)

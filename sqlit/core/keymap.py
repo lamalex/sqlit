@@ -247,6 +247,7 @@ class DefaultKeymapProvider(KeymapProvider):
             LeaderCommandDef("s", "first_non_blank", "Go to first non-blank", "Go to", menu="g"),
             LeaderCommandDef("d", "definition", "Go to definition", "Go to", menu="g"),
             LeaderCommandDef("r", "references", "Find references", "Go to", menu="g"),
+            LeaderCommandDef("R", "rename", "Rename SQL symbol", "Go to", menu="g"),
             LeaderCommandDef("c", "comment", "Toggle comment...", "Toggle", menu="g"),
             # gc comment menu (vim-style)
             LeaderCommandDef("c", "line", "Toggle line comment", "Comment", menu="gc"),

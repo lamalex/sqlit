@@ -27,6 +27,7 @@ class QueryAnalysisMixin:
     _applying_syntax_selection: bool = False
     _query_jump_back: list[QuerySelectionSnapshot] | None = None
     _query_jump_forward: list[QuerySelectionSnapshot] | None = None
+    _query_rename_token: int = 0
 
     def _get_query_analysis_service(self: QueryMixinHost) -> QueryAnalysisService:
         provider = getattr(self, "current_provider", None)
@@ -267,6 +268,68 @@ class QueryAnalysisMixin:
                 description="References linked to this declaration. Type to filter.",
                 placeholder="Filter SQL references...",
             ),
+            handle_result,
+        )
+
+    def action_g_rename(self: QueryMixinHost) -> None:
+        """Rename the CTE or alias under the logical head."""
+        from sqlit.domains.query.app.query_rename import (
+            RenameError,
+            build_rename_plan,
+            offset_to_position,
+            syntax_range_to_span,
+        )
+        from sqlit.domains.query.ui.screens import QueryRenameScreen
+
+        self._clear_leader_pending()
+        self._clear_count_buffer()
+        original_text = self.query_input.text
+        row, col = self._query_logical_head()
+        service = self._get_query_analysis_service()
+        symbol = service.symbol_at(original_text, Position(row, col))
+        if symbol is None:
+            self.notify("No renameable SQL symbol found at cursor", severity="warning")
+            return
+
+        self._query_rename_token += 1
+        token = self._query_rename_token
+
+        def handle_result(new_name: str | None) -> None:
+            if new_name is None:
+                return
+            if token != self._query_rename_token or self.query_input.text != original_text:
+                self.notify("Query changed before rename could be applied", severity="warning")
+                return
+            try:
+                plan = build_rename_plan(original_text, symbol, new_name)
+                renamed_symbol = service.symbol_at(
+                    plan.text,
+                    offset_to_position(plan.text, plan.declaration.start),
+                )
+                if (
+                    renamed_symbol is None
+                    or renamed_symbol.kind != symbol.kind
+                    or renamed_symbol.name != new_name
+                    or syntax_range_to_span(plan.text, renamed_symbol.declaration) != plan.declaration
+                    or tuple(syntax_range_to_span(plan.text, value) for value in renamed_symbol.references) != plan.references
+                    or service.symbol_has_conflict(plan.text, renamed_symbol)
+                ):
+                    raise RenameError("Rename would change SQL symbol resolution")
+            except RenameError as error:
+                self.notify(str(error), severity="error")
+                return
+
+            self._push_undo_state()
+            self._reset_query_jump_history()
+            self._reset_syntax_selection_history()
+            self._suppress_autocomplete_once = True
+            self.query_input.text = plan.text
+            target = offset_to_position(plan.text, plan.declaration.start)
+            self._set_normal_selection((target.row, target.col))
+            self.notify(f"Renamed {symbol.name} to {new_name} ({plan.occurrence_count} occurrence{'s' if plan.occurrence_count != 1 else ''})")
+
+        self.push_screen(
+            QueryRenameScreen(symbol.name, len(symbol.references) + 1),
             handle_result,
         )
 

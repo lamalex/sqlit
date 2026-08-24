@@ -54,6 +54,7 @@ class QueryStateProtocol(Protocol):
     _applying_syntax_selection: bool
     _query_jump_back: list[Any] | None
     _query_jump_forward: list[Any] | None
+    _query_rename_token: int
 
 
 class QueryActionsProtocol(Protocol):
