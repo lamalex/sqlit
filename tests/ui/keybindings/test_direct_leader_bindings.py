@@ -81,7 +81,7 @@ def test_direct_command_respects_guards_and_state_restrictions(action, context, 
     [
         {"query_normal": {"telescope": "enter"}},
         {"query_normal": {"telescope": "ctrl+g", "change_theme": "ctrl+g"}},
-        {"query_normal": {"telescope": "q"}},  # shadows navigation focus_query
+        {"query_normal": {"telescope": "w"}},  # shadows cursor_word_forward
     ],
 )
 def test_promoted_command_uses_existing_conflict_detection(actions):

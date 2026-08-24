@@ -33,6 +33,19 @@ class QueryAnalysisMixin:
         provider = getattr(self, "current_provider", None)
         metadata = getattr(provider, "metadata", None)
         dialect = getattr(metadata, "analysis_dialect", None)
+        if dialect is None:
+            runtime = getattr(getattr(self, "services", None), "runtime", None)
+            profile = getattr(getattr(runtime, "mock", None), "profile", None)
+            db_types = {connection.db_type for connection in getattr(profile, "connections", ())}
+            if len(db_types) == 1:
+                from sqlit.domains.connections.providers.catalog import (
+                    get_provider_spec,
+                )
+
+                try:
+                    dialect = get_provider_spec(db_types.pop()).analysis_dialect
+                except ValueError:
+                    pass
         if self._query_analysis_service is None:
             from sqlit.domains.query.app.sqlglot_analysis import SQLGlotSemanticBackend
 

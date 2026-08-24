@@ -8,6 +8,7 @@ import pytest
 from textual.widgets import Input
 
 from sqlit.core.vim import VimMode
+from sqlit.domains.connections.app.mocks import get_mock_profile
 from sqlit.domains.query.ui.screens import QueryRenameScreen
 from sqlit.domains.shell.app.main import SSMSTUI
 
@@ -139,3 +140,27 @@ async def test_gR_is_unavailable_for_incomplete_sql() -> None:
         assert app._query_selection == original
         assert not app._leader_pending
         assert not isinstance(app.screen, QueryRenameScreen)
+
+
+@pytest.mark.asyncio
+async def test_gR_uses_single_mock_profile_dialect_before_connecting() -> None:
+    profile = get_mock_profile("sqlite-demo")
+    assert profile is not None
+    services = build_test_services(
+        connection_store=MockConnectionStore(),
+        settings_store=MockSettingsStore({"theme": "tokyo-night"}),
+    )
+    services.apply_mock_profile(profile)
+    app = SSMSTUI(services=services)
+    sql = "WITH recent_orders AS (SELECT 1) SELECT * FROM recent_orders"
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        assert app.current_provider is None
+        app.action_focus_query()
+        app.query_input.text = sql
+        app._set_normal_selection((0, sql.index("recent_orders")))
+
+        await pilot.press("g", "R")
+
+        assert isinstance(app.screen, QueryRenameScreen)
+        assert app._get_query_analysis_service().dialect == "sqlite"

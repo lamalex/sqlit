@@ -9,9 +9,9 @@ from .document_choices import (
 from .editor_picker import EditorPickerScreen
 from .query_history import QueryHistoryScreen
 from .query_library import QueryLibraryScreen
-from .saved_query_name import SavedQueryNameScreen
 from .query_rename import QueryRenameScreen
 from .query_search import QuerySearchScreen
+from .saved_query_name import SavedQueryNameScreen
 from .surround_menu import SurroundMenuScreen
 from .syntax_object_picker import SyntaxObjectPickerScreen, syntax_kind_label
 from .text_object_menu import TextObjectMenuScreen

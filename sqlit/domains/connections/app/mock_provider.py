@@ -50,6 +50,7 @@ def build_mock_provider(db_type: str, adapter: DatabaseAdapter) -> DatabaseProvi
             has_advanced_auth=spec.has_advanced_auth if spec else False,
             requires_auth=spec.requires_auth if spec else True,
             url_schemes=spec.url_schemes if spec else (),
+            analysis_dialect=spec.analysis_dialect if spec else None,
         )
         schema = get_provider_schema(db_type) if spec else ConnectionSchema(
             db_type=db_type,
