@@ -186,9 +186,89 @@ class QueryAnalysisMixin:
         if target is None:
             self.notify("No SQL definition found at cursor", severity="warning")
             return
+        self._commit_query_jump(target)
+
+    def _commit_query_jump(self: QueryMixinHost, target: SyntaxRange) -> bool:
+        target_position = (target.start.row, target.start.col)
+        if self.vim_mode == VimMode.NORMAL and self._query_selection.normal_selection_primary and self._query_logical_head() == target_position:
+            return False
         self._record_query_jump()
         self._reset_syntax_selection_history()
-        self._set_normal_selection((target.start.row, target.start.col))
+        self._set_normal_selection(target_position)
+        return True
+
+    def _apply_query_range_preview(
+        self: QueryMixinHost,
+        original_snapshot: QuerySelectionSnapshot,
+        original_syntax_current: SyntaxRange | None,
+        target: SyntaxRange | None,
+    ) -> None:
+        snapshot = original_snapshot
+        if target is not None:
+            end = (target.end.row, target.end.col)
+            snapshot = replace(
+                original_snapshot,
+                start=(target.start.row, target.start.col),
+                end=end,
+                logical_cursor=self._position_before(end),
+                normal_selection_primary=False,
+                vim_mode=VimMode.NORMAL,
+                visual_anchor=None,
+                visual_cursor=None,
+                visual_line_anchor_row=None,
+            )
+        self._applying_syntax_selection = True
+        try:
+            self._apply_query_selection(snapshot)
+        finally:
+            self._applying_syntax_selection = False
+        self._syntax_selection_current = original_syntax_current
+
+    def action_g_references(self: QueryMixinHost) -> None:
+        """Find references to the CTE or alias under the logical head."""
+        from sqlit.domains.query.ui.screens import SyntaxObjectPickerScreen
+
+        self._clear_leader_pending()
+        self._clear_count_buffer()
+        row, col = self._query_logical_head()
+        references = self._get_query_analysis_service().references_at(
+            self.query_input.text,
+            Position(row, col),
+        )
+        if not references:
+            self.notify("No SQL references found at cursor", severity="warning")
+            return
+        if len(references) == 1:
+            if not self._commit_query_jump(references[0]):
+                self.notify("Only SQL reference is at cursor")
+            return
+
+        original_snapshot = self._query_selection
+        original_syntax_current = self._syntax_selection_current
+
+        def apply_preview(target: SyntaxRange | None) -> None:
+            self._apply_query_range_preview(
+                original_snapshot,
+                original_syntax_current,
+                target,
+            )
+
+        def handle_result(target: SyntaxRange | None) -> None:
+            apply_preview(None)
+            if target is not None:
+                self._commit_query_jump(target)
+
+        self.push_screen(
+            SyntaxObjectPickerScreen(
+                self.query_input.text,
+                references,
+                apply_preview,
+                title="Find SQL reference",
+                description="References linked to this declaration. Type to filter.",
+                placeholder="Filter SQL references...",
+            ),
+            handle_result,
+        )
 
     def action_show_syntax_object_picker(self: QueryMixinHost) -> None:
         """Choose a semantic object from the current SQL statement."""
@@ -208,26 +288,11 @@ class QueryAnalysisMixin:
         original_syntax_current = self._syntax_selection_current
 
         def apply_preview(target: SyntaxRange | None) -> None:
-            snapshot = original_snapshot
-            if target is not None:
-                end = (target.end.row, target.end.col)
-                snapshot = replace(
-                    original_snapshot,
-                    start=(target.start.row, target.start.col),
-                    end=end,
-                    logical_cursor=self._position_before(end),
-                    normal_selection_primary=False,
-                    vim_mode=VimMode.NORMAL,
-                    visual_anchor=None,
-                    visual_cursor=None,
-                    visual_line_anchor_row=None,
-                )
-            self._applying_syntax_selection = True
-            try:
-                self._apply_query_selection(snapshot)
-            finally:
-                self._applying_syntax_selection = False
-            self._syntax_selection_current = original_syntax_current
+            self._apply_query_range_preview(
+                original_snapshot,
+                original_syntax_current,
+                target,
+            )
 
         def handle_result(target: SyntaxRange | None) -> None:
             if target is None:

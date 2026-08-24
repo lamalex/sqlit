@@ -223,6 +223,9 @@ def test_definition_at_links_semantic_references(
             DefinitionKind.PROJECTION_ALIAS: "projection_alias",
         }[kind],
     )
+    references = service.references_at(sql, Position(0, definition_offset))
+    assert references
+    assert any(item.start <= Position(0, reference_offset) < item.end for item in references)
 
 
 def test_relation_alias_lookup_honors_nested_scope_shadowing() -> None:
@@ -290,6 +293,40 @@ def test_cte_definition_lookup_honors_nested_shadowing() -> None:
         Position(0, inner_definition + 4),
         "cte_name",
     )
+    assert service.references_at(sql, Position(0, inner_definition)) == (
+        SyntaxRange(
+            Position(0, sql.rindex("item")),
+            Position(0, sql.rindex("item") + 4),
+            "cte_reference",
+        ),
+    )
+
+
+def test_references_at_resolves_declaration_and_reference_to_same_group() -> None:
+    sql = "WITH recent AS (SELECT id FROM users) SELECT recent.id FROM recent ORDER BY recent.id"
+    service = QueryAnalysisService(
+        TextualQueryAnalysisBackend(QueryTextArea(sql, language="sql")),
+        dialect="sqlite",
+        semantic_backend=SQLGlotSemanticBackend(),
+    )
+    declaration = sql.index("recent")
+    snapshot = service.semantic_snapshot(sql)
+    expected = tuple(link.reference for link in snapshot.definitions if link.definition.start == Position(0, declaration))
+
+    assert len(expected) == 3
+    assert service.references_at(sql, Position(0, declaration)) == expected
+    assert service.references_at(sql, expected[-1].start) == expected
+
+
+def test_references_at_is_empty_when_semantics_are_unavailable() -> None:
+    text = "SELECT id FROM users WHERE ("
+    service = QueryAnalysisService(
+        TextualQueryAnalysisBackend(QueryTextArea(text, language="sql")),
+        dialect="sqlite",
+        semantic_backend=SQLGlotSemanticBackend(),
+    )
+
+    assert service.references_at(text, Position(0, 7)) == ()
 
 
 def test_resolved_table_indexes_survive_snapshot_source_sorting() -> None:

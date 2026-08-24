@@ -163,6 +163,8 @@ The initial Phase 3 backend now uses SQLGlot through `QueryAnalysisService` with
 
 Semantic navigation maintains a dedicated bounded jump list: `Ctrl+o` restores the exact selection before a `gd` jump and `Ctrl+i` moves forward again. The list is independent of edit undo and structural selection history, truncates its forward branch after a new jump, and resets whenever query text or the loaded history document changes so stale source positions cannot be restored.
 
+`gr` finds references from either a CTE/alias declaration or one of its linked uses. A single reference jumps directly; multiple references use a filterable picker with live editor preview, exact cancellation, and one committed jump-list entry. Exact declaration ranges keep nested and shadowed symbols isolated without exposing SQLGlot objects to the UI.
+
 ## Phase 4: SQL-Native Workflows
 
 Build features that exploit syntax and live schema knowledge:

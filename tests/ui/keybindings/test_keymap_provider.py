@@ -39,6 +39,7 @@ class TestKeymapProvider:
         assert keymap.action("query_jump_forward") == "ctrl+i"
         assert keymap.leader("left", "window") == "h"
         assert keymap.leader("definition", "g") == "d"
+        assert keymap.leader("references", "g") == "r"
 
     def test_custom_keymap_can_be_set(self):
         """Custom keymap provider can be injected."""

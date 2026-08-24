@@ -322,6 +322,7 @@
         "line_end": "l",
         "first_non_blank": "s",
         "definition": "d",
+        "references": "r",
         "comment": "c"
       },
       "gc": {

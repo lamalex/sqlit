@@ -244,3 +244,24 @@ class QueryAnalysisService:
             ),
         )
         return match.definition
+
+    def references_at(self, text: str, position: Position) -> tuple[SyntaxRange, ...]:
+        snapshot = self.semantic_snapshot(text)
+        matches = [(link, candidate) for link in snapshot.definitions for candidate in (link.reference, link.definition) if candidate.start <= position < candidate.end]
+        if not matches:
+            return ()
+        match, _candidate = min(
+            matches,
+            key=lambda item: (
+                item[1].end.row - item[1].start.row,
+                item[1].end.col - item[1].start.col,
+            ),
+        )
+        references: list[SyntaxRange] = []
+        seen: set[SyntaxRange] = set()
+        for link in snapshot.definitions:
+            if link.definition != match.definition or link.reference in seen:
+                continue
+            seen.add(link.reference)
+            references.append(link.reference)
+        return tuple(references)

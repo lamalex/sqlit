@@ -5,10 +5,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from textual.widgets import OptionList
 
 from sqlit.core.vim import VimMode
 from sqlit.domains.query.app.query_analysis import SemanticStatus, SyntaxRange
 from sqlit.domains.query.editing import Position
+from sqlit.domains.query.ui.screens import SyntaxObjectPickerScreen
 from sqlit.domains.shell.app.main import SSMSTUI
 
 from ..mocks import MockConnectionStore, MockSettingsStore, build_test_services
@@ -203,3 +205,110 @@ async def test_loading_same_history_query_clears_jump_history() -> None:
 
         assert not app._query_jump_back
         assert not app._query_jump_forward
+
+
+@pytest.mark.asyncio
+async def test_gr_jumps_directly_to_a_single_reference() -> None:
+    app = _make_app()
+    app.current_provider = SimpleNamespace(metadata=SimpleNamespace(analysis_dialect="sqlite"))
+    sql = "SELECT u.id FROM users AS u"
+    definition = sql.rindex("u")
+    reference = sql.index("u.id")
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = sql
+        app._set_normal_selection((0, definition))
+        original = app._query_selection
+
+        await pilot.press("g", "r")
+        await pilot.pause()
+        target = app._query_selection
+
+        assert app._query_logical_head() == (0, reference)
+        await pilot.press("ctrl+o")
+        assert app._query_selection == original
+        await pilot.press("ctrl+i")
+        assert app._query_selection == target
+
+        jump_back = list(app._query_jump_back or ())
+        await pilot.press("g", "r")
+        assert app._query_selection == target
+        assert app._query_jump_back == jump_back
+
+
+@pytest.mark.asyncio
+async def test_gr_picker_previews_cancels_and_commits_reference_jump() -> None:
+    app = _make_app()
+    app.current_provider = SimpleNamespace(metadata=SimpleNamespace(analysis_dialect="sqlite"))
+    sql = "WITH recent AS (SELECT id FROM users) SELECT recent.id FROM recent ORDER BY recent.id"
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = sql
+        declaration = (0, sql.index("recent"))
+        references = app._get_query_analysis_service().references_at(
+            sql,
+            Position(*declaration),
+        )
+        app._set_normal_selection((references[0].start.row, references[0].start.col))
+        await pilot.press("g", "d", "ctrl+o")
+        forward_before = tuple(app._query_jump_forward or ())
+        assert forward_before
+
+        app._set_normal_selection(declaration)
+        await pilot.press("v", "l")
+        original = app._query_selection
+
+        await pilot.press("g", "r")
+        assert isinstance(app.screen, SyntaxObjectPickerScreen)
+        option_list = app.screen.query_one("#syntax-object-picker-list", OptionList)
+        assert option_list.option_count == 3
+        assert app._ordered_selection(app.query_input.selection) == (
+            (references[0].start.row, references[0].start.col),
+            (references[0].end.row, references[0].end.col),
+        )
+
+        await pilot.press("down")
+        assert app._ordered_selection(app.query_input.selection) == (
+            (references[1].start.row, references[1].start.col),
+            (references[1].end.row, references[1].end.col),
+        )
+        await pilot.press("escape")
+        assert app._query_selection == original
+        assert not app._query_jump_back
+        assert tuple(app._query_jump_forward or ()) == forward_before
+
+        await pilot.press("g", "r", "down", "enter")
+        await pilot.pause()
+        target = app._query_selection
+        assert app._query_logical_head() == (
+            references[1].start.row,
+            references[1].start.col,
+        )
+        assert app.vim_mode == VimMode.NORMAL
+        assert not app._query_jump_forward
+
+        await pilot.press("ctrl+o")
+        assert app._query_selection == original
+        await pilot.press("ctrl+i")
+        assert app._query_selection == target
+
+
+@pytest.mark.asyncio
+async def test_gr_leaves_selection_unchanged_without_semantics() -> None:
+    app = _make_app()
+    app.current_provider = SimpleNamespace(metadata=SimpleNamespace(analysis_dialect="sqlite"))
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app.action_focus_query()
+        app.query_input.text = "SELECT id FROM users WHERE ("
+        app._set_normal_selection((0, 7))
+        original = app._query_selection
+
+        await pilot.press("g", "r")
+        await pilot.pause()
+
+        assert app._query_selection == original
+        assert not app._leader_pending
+        assert not app._query_jump_back

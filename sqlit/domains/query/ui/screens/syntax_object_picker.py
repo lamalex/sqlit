@@ -32,6 +32,9 @@ _KIND_LABELS = {
     "returning": "RETURNING clause",
     "join_condition": "JOIN condition",
     "table_expression": "Table expression",
+    "cte_reference": "CTE reference",
+    "relation_alias_reference": "Relation alias reference",
+    "projection_alias_reference": "Projection alias reference",
 }
 
 
@@ -102,11 +105,18 @@ class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
         text: str,
         selections: tuple[SyntaxRange, ...],
         preview: Callable[[SyntaxRange | None], None],
+        *,
+        title: str = "Select SQL object",
+        description: str = "Objects available in the current statement. Type to filter.",
+        placeholder: str = "Filter SQL objects...",
     ) -> None:
         super().__init__()
         self._entries = [self._entry(text, selection) for selection in selections]
         self._filtered: list[tuple[int, SyntaxPickerEntry]] = list(enumerate(self._entries))
         self._preview = preview
+        self._title = title
+        self._description = description
+        self._placeholder = placeholder
 
     @staticmethod
     def _entry(text: str, selection: SyntaxRange) -> SyntaxPickerEntry:
@@ -127,15 +137,15 @@ class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
         shortcuts = [("Select", "<enter>"), ("Cancel", "<esc>")]
         with Dialog(
             id="syntax-object-picker-dialog",
-            title="Select SQL object",
+            title=self._title,
             shortcuts=shortcuts,
         ):
             yield Static(
-                "Objects available in the current statement. Type to filter.",
+                self._description,
                 id="syntax-object-picker-description",
             )
             with Vertical(id="syntax-object-picker-body"):
-                yield Input(placeholder="Filter SQL objects...", id="syntax-object-picker-input")
+                yield Input(placeholder=self._placeholder, id="syntax-object-picker-input")
                 yield OptionList(*self._render_options(), id="syntax-object-picker-list")
 
     def on_mount(self) -> None:
@@ -156,11 +166,7 @@ class SyntaxObjectPickerScreen(ModalScreen[SyntaxRange | None]):
 
     def _rebuild_options(self, query: str) -> None:
         needle = query.strip().casefold()
-        self._filtered = [
-            (index, entry)
-            for index, entry in enumerate(self._entries)
-            if not needle or needle in f"{entry.label} {entry.snippet}".casefold()
-        ]
+        self._filtered = [(index, entry) for index, entry in enumerate(self._entries) if not needle or needle in f"{entry.label} {entry.snippet}".casefold()]
         option_list = self.query_one("#syntax-object-picker-list", OptionList)
         option_list.clear_options()
         for option in self._render_options():
