@@ -28,10 +28,20 @@
         shortRev = if self ? shortRev then self.shortRev else "dirty";
         version = if tag != "" then tag else "0.0.0+${shortRev}";
 
+        # Match the semantic parser version pinned in pyproject.toml.
+        sqlglot = pyPkgs.sqlglot.overridePythonAttrs (_: rec {
+          version = "30.15.0";
+          src = pkgs.fetchPypi {
+            pname = "sqlglot";
+            inherit version;
+            sha256 = "fe5412f4da61075f532d3de2482144bf7139028980a37bbd79fb016c49dc2dbe";
+          };
+        });
+
         # Extras mirror project.optional-dependencies in pyproject.toml,
         # limited to drivers packaged in nixpkgs. Others (mssql-python,
         # oracledb, mariadb, ibm_db, hdbcli, teradatasql, trino,
-        # presto-python-client, redshift-connector, clickhouse-connect,
+        # presto-python-client, clickhouse-connect,
         # libsql, firebirdsql, pyathena, adbc-driver-flightsql) aren't
         # here; install with `pipx inject` or a custom derivation.
         nixpkgsExtras = {
@@ -39,6 +49,11 @@
           postgres = [ pyPkgs.psycopg2 ];
           cockroachdb = [ pyPkgs.psycopg2 ];
           mysql = [ pyPkgs.pymysql ];
+          redshift = [ pyPkgs.redshift-connector ];
+          databricks = [
+            pyPkgs.databricks-sql-connector
+            pyPkgs.databricks-sdk
+          ];
           duckdb = [ pyPkgs.duckdb ];
           bigquery = [ pyPkgs.google-cloud-bigquery ];
           snowflake = [ pyPkgs.snowflake-connector-python ];
@@ -77,12 +92,13 @@
               "textual-fastdatatable"
             ];
 
-            SETUPTOOLS_SCM_PRETEND_VERSION = version;
+            env.SETUPTOOLS_SCM_PRETEND_VERSION = version;
 
             dependencies = [
               pyPkgs.docker
               pyPkgs.keyring
               pyPkgs.pyperclip
+              sqlglot
               pyPkgs.sqlparse
               pyPkgs.textual
               pyPkgs."textual-fastdatatable"
