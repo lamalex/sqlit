@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from sqlit.shared.ui.protocols import QueryMixinHost
 
+from .query_editing_multicursor import per_selection
+
 
 class QueryEditingCursorMixin:
     """Cursor movement and navigation for the query editor."""
 
+    @per_selection
     def _move_with_motion(self: QueryMixinHost, motion_key: str, char: str | None = None) -> None:
         """Move cursor using a vim motion, with optional count prefix support."""
         from sqlit.domains.query.editing import MOTIONS
@@ -59,6 +62,7 @@ class QueryEditingCursorMixin:
         """Show the g motion leader menu."""
         self._start_leader_pending("g")
 
+    @per_selection
     def action_g_first_line(self: QueryMixinHost) -> None:
         """Go to first line (gg), or to line N with count prefix (e.g., 3gg)."""
         from sqlit.core.vim import VimMode
@@ -193,6 +197,7 @@ class QueryEditingCursorMixin:
         """Move till after previous char (T{c})."""
         self._show_motion_char_pending_menu("T")
 
+    @per_selection
     def action_prepend_insert_mode(self: QueryMixinHost) -> None:
         """Enter insert mode at start of line (I)."""
         row, _ = self._query_logical_head()
@@ -200,12 +205,14 @@ class QueryEditingCursorMixin:
         self._replace_query_selection(start=target, end=target, logical_cursor=target)
         self.action_enter_insert_mode()
 
+    @per_selection
     def action_append_insert_mode(self: QueryMixinHost) -> None:
         """Enter insert mode after the current selection (a)."""
         _, end = self._ordered_selection(self.query_input.selection)
         self._replace_query_selection(start=end, end=end, logical_cursor=end)
         self.action_enter_insert_mode()
 
+    @per_selection
     def action_append_line_end(self: QueryMixinHost) -> None:
         """Enter insert mode at end of line (A)."""
         lines = self.query_input.text.split("\n")
@@ -227,6 +234,11 @@ class QueryEditingCursorMixin:
 
     def action_open_line_below(self: QueryMixinHost) -> None:
         """Open new line below current line and enter insert mode (o in normal mode)."""
+        if self._query_selection.secondary:
+            from sqlit.core.vim import VimMode
+
+            self._edit_query_selections("\n", mode=VimMode.INSERT, open_line="below")
+            return
         self._push_undo_state()
         lines = self.query_input.text.split("\n")
         row, _ = self.query_input.cursor_location
@@ -241,6 +253,11 @@ class QueryEditingCursorMixin:
 
     def action_open_line_above(self: QueryMixinHost) -> None:
         """Open new line above current line and enter insert mode (O in normal mode)."""
+        if self._query_selection.secondary:
+            from sqlit.core.vim import VimMode
+
+            self._edit_query_selections("\n", mode=VimMode.INSERT, open_line="above")
+            return
         self._push_undo_state()
         lines = self.query_input.text.split("\n")
         row, _ = self.query_input.cursor_location

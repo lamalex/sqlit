@@ -47,7 +47,10 @@ class QueryEditingClipboardMixin:
         )
 
     def action_copy_selection(self: QueryMixinHost) -> None:
-        """Copy selected text to clipboard (CTRL+C)."""
+        """Copy selected text to clipboard."""
+        if self._query_selection.secondary:
+            self._yank_query_selections()
+            return
         from sqlit.domains.query.editing import get_selection_text
 
         selection = self.query_input.selection
@@ -75,6 +78,9 @@ class QueryEditingClipboardMixin:
         from sqlit.core.vim import VimMode
 
         clipboard = self._get_clipboard_text()
+        if self._query_selection.secondary:
+            self._edit_query_selections(clipboard, after=self.vim_mode == VimMode.NORMAL)
+            return
         if self.vim_mode == VimMode.NORMAL and self._has_selection():
             _, end = self._ordered_selection(self.query_input.selection)
             self._replace_query_selection(
@@ -89,6 +95,9 @@ class QueryEditingClipboardMixin:
         from sqlit.domains.query.editing import paste_text
 
         if not clipboard:
+            return
+        if self._query_selection.secondary:
+            self._edit_query_selections(clipboard)
             return
 
         # Push undo state before paste

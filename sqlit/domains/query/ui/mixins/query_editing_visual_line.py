@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from sqlit.shared.ui.protocols import QueryMixinHost
 
+from .query_editing_multicursor import per_selection
+
 
 class QueryEditingVisualLineMixin:
     """Visual line mode (V) for the query editor."""
 
+    @per_selection
     def action_enter_visual_line_mode(self: QueryMixinHost) -> None:
         """Enter visual line mode (V)."""
         from sqlit.core.vim import VimMode
@@ -28,6 +31,7 @@ class QueryEditingVisualLineMixin:
             update_chrome=True,
         )
 
+    @per_selection
     def action_exit_visual_line_mode(self: QueryMixinHost) -> None:
         """Exit visual line mode back to normal."""
         cursor = self.query_input.cursor_location
@@ -83,6 +87,10 @@ class QueryEditingVisualLineMixin:
 
     def action_visual_line_yank(self: QueryMixinHost) -> None:
         """Yank (copy) selected lines."""
+        if self._query_selection.secondary:
+            self._yank_query_selections()
+            self.action_exit_visual_line_mode()
+            return
         from sqlit.domains.query.editing import MotionType, Position, Range, operator_yank
 
         start_row, end_row = self._get_visual_line_range()
@@ -114,6 +122,12 @@ class QueryEditingVisualLineMixin:
 
     def action_visual_line_delete(self: QueryMixinHost) -> None:
         """Delete selected lines."""
+        if self._query_selection.secondary:
+            from sqlit.core.vim import VimMode
+
+            self._yank_query_selections()
+            self._edit_query_selections("", mode=VimMode.NORMAL, linewise=True)
+            return
         from sqlit.domains.query.editing import MotionType, Position, Range, operator_delete
         self._push_undo_state()
 
@@ -140,6 +154,12 @@ class QueryEditingVisualLineMixin:
 
     def action_visual_line_change(self: QueryMixinHost) -> None:
         """Change (delete + insert mode) selected lines."""
+        if self._query_selection.secondary:
+            from sqlit.core.vim import VimMode
+
+            self._yank_query_selections()
+            self._edit_query_selections("", mode=VimMode.INSERT)
+            return
         from sqlit.domains.query.editing import MotionType, Position, Range, operator_delete
 
         self._push_undo_state()

@@ -17,6 +17,7 @@ from .query_editing_comments import QueryEditingCommentsMixin
 from .query_editing_common import QueryEditingCommonMixin
 from .query_editing_cursor import QueryEditingCursorMixin
 from .query_editing_format import QueryEditingFormatMixin
+from .query_editing_multicursor import QueryEditingMulticursorMixin
 from .query_editing_operators import QueryEditingOperatorsMixin
 from .query_editing_search import QueryEditingSearchMixin
 from .query_editing_selection import QueryEditingSelectionMixin
@@ -28,6 +29,7 @@ from .query_results import QueryResultsMixin
 
 
 class QueryMixin(
+    QueryEditingMulticursorMixin,
     QueryAnalysisMixin,
     QueryDocumentsMixin,
     QueryEditingVisualMixin,

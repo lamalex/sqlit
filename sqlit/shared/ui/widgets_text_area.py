@@ -12,6 +12,8 @@ from textual.widgets import TextArea
 from textual.widgets.text_area import Selection
 
 if TYPE_CHECKING:
+    from rich.text import Text
+
     from sqlit.shared.ui.protocols import AutocompleteProtocol
 
 
@@ -43,9 +45,7 @@ class QueryTextArea(TextArea):
         "ctrl+shift+v": "ctrl+v",
         "super+shift+v": "ctrl+v",
         # Copy variants
-        "super+c": "ctrl+c",
-        "ctrl+shift+c": "ctrl+c",
-        "super+shift+c": "ctrl+c",
+        "super+shift+c": "super+c",
         # Cut variants
         "super+x": "ctrl+x",
         "ctrl+shift+x": "ctrl+x",
@@ -229,6 +229,9 @@ class QueryTextArea(TextArea):
             event.stop()
             return
 
+        if self._handle_multicursor_key(event):
+            return
+
         # Tab inserts a real tab character in INSERT mode. We do this manually
         # so the widget can keep the default tab_behavior='focus' and not let
         # Textual's indent-aware TextArea consume Escape for focus navigation.
@@ -346,6 +349,32 @@ class QueryTextArea(TextArea):
 
         # For all other keys, use default TextArea behavior
         await super()._on_key(event)
+
+    def _handle_multicursor_key(self, event: Key) -> bool:
+        snapshot = getattr(self.app, "_query_selection", None)
+        if not self._is_insert_mode() or snapshot is None or not snapshot.secondary:
+            return False
+        if event.key.removeprefix("shift+") in {"left", "right", "up", "down", "home", "end"}:
+            self.app._move_query_insert_cursor(event.key)
+            event.prevent_default()
+            event.stop()
+            return True
+        value = None
+        if event.key == "enter":
+            value = "\n"
+        elif event.key == "tab":
+            value = self._tab_insert_string()
+        elif event.key in {"backspace", "delete"}:
+            value = ""
+        elif event.is_printable:
+            value = event.character
+        if value is None:
+            return False
+        self.app._hide_autocomplete()
+        self.app._edit_query_selections(value, delete_key=event.key)
+        event.prevent_default()
+        event.stop()
+        return True
 
     async def _on_paste(self, event: Paste) -> None:
         """Handle terminal-delivered paste text explicitly."""
@@ -503,3 +532,21 @@ class QueryTextArea(TextArea):
                 return Strip(segments, strip.cell_length)
 
         return strip
+
+    def get_line(self, line_index: int) -> Text:
+        """Style secondary selections before Textual wraps and expands tabs."""
+        line = super().get_line(line_index)
+        snapshot = getattr(self.app, "_query_selection", None) if self.is_attached else None
+        if snapshot is None or not snapshot.secondary or self._theme is None:
+            return line
+        line.set_length(len(line) + 1)
+        for secondary in snapshot.secondary:
+            start, end = sorted((secondary.start, secondary.end))
+            if start[0] <= line_index <= end[0] and self._theme.selection_style:
+                a = start[1] if line_index == start[0] else 0
+                b = end[1] if line_index == end[0] else len(line)
+                line.stylize(self._theme.selection_style, a, b)
+            row, col = secondary.logical_cursor
+            if self.has_focus and row == line_index and self._theme.cursor_style:
+                line.stylize(self._theme.cursor_style, col, col + 1)
+        return line

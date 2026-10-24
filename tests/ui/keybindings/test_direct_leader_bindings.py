@@ -116,7 +116,10 @@ async def test_direct_key_and_leader_key_dispatch_in_headless_app(tmp_path, monk
     from .test_leader import _make_app
 
     path = tmp_path / "keymap.json"
-    path.write_text(json.dumps({"keymap": {"action_keys": {"query_normal": {action: key}}}}))
+    bindings = {action: key}
+    if key == "ctrl+c":
+        bindings["toggle_query_comment"] = None
+    path.write_text(json.dumps({"keymap": {"action_keys": {"query_normal": bindings}}}))
     monkeypatch.setattr(keymap_manager, "DEFAULT_KEYMAP_FILE", path)
     app = _make_app()
     calls = []

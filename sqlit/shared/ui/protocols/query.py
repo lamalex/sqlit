@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from textual.timer import Timer
     from textual.worker import Worker
 
+    from sqlit.core.vim import VimMode
     from sqlit.domains.query.editing.deletion import EditResult
+    from sqlit.domains.query.editing.undo_history import QuerySelectionSnapshot
     from sqlit.shared.ui.spinner import Spinner
     from sqlit.shared.ui.widgets import SqlitDataTable
 
@@ -59,6 +61,28 @@ class QueryStateProtocol(Protocol):
 
 class QueryActionsProtocol(Protocol):
     _history_store: Any | None
+
+    def _query_selections(self) -> list[QuerySelectionSnapshot]:
+        ...
+
+    def _install_query_selections(self, snapshots: Sequence[QuerySelectionSnapshot]) -> None:
+        ...
+
+    def _edit_query_selections(
+        self, replacement: str | Callable[[str], str], *, mode: VimMode | None = None,
+        delete_key: str | None = None, after: bool = False, linewise: bool = False, preserve: bool = False,
+        open_line: str | None = None,
+    ) -> None:
+        ...
+
+    def _yank_query_selections(self) -> None:
+        ...
+
+    def _select_query_text_object(self, obj_char: str, *, around: bool) -> None:
+        ...
+
+    def _move_query_insert_cursor(self, key: str) -> None:
+        ...
 
     def action_query_search(self) -> None:
         ...

@@ -24,6 +24,7 @@ class QuerySelectionSnapshot:
     visual_anchor: Location | None = None
     visual_cursor: Location | None = None
     visual_line_anchor_row: int | None = None
+    secondary: tuple[QuerySelectionSnapshot, ...] = ()
 
 
 @dataclass(frozen=True)

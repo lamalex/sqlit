@@ -19,6 +19,8 @@ The goal is not to reproduce every Helix feature. The goal is to preserve Helix'
 The current editor foundation includes:
 
 - Primary NORMAL-mode selections and explicit character and line selection modes
+- Multiple cursors with `C`, shared core editing operations, and selection-aware undo/redo
+- `Ctrl+c` SQL comment toggling across selected lines
 - Selection-first copy, delete, change, paste, replace, insert, and execution behavior
 - Helix-style word, WORD, line, file, goto, find, till, and matching-bracket motions
 - Text-object selection with `mi{object}` and `ma{object}`
@@ -36,6 +38,24 @@ The current editor foundation includes:
 - User-configurable keymaps with migration for changed defaults
 
 ## Phase 0: Selection Correctness
+
+### Multiple Cursors (initial support)
+
+In NORMAL or selection mode, `C` copies the primary selection onto the next line;
+repeat it (or use a count such as `3C`) to add more cursors. Motions, text objects,
+insert/append, open-line, typing, delete/change, replace, yank, and paste operate
+across the selections. Secondary selections are highlighted, and undo/redo restore
+the whole selection set. Overlapping deletions edit each character only once;
+coincident cursors merge. `Escape` in NORMAL mode keeps only the primary cursor.
+
+`Ctrl+c` toggles SQL comments on all selected lines, including in INSERT mode.
+Overlapping line ranges are commented only once. Use `y`, `Cmd+c`, or
+`Ctrl+Shift+c` to copy (`Cmd+c` and `Ctrl+Shift+c` are INSERT-mode shortcuts).
+
+This is a core-editing slice, not complete Helix multicursor parity: structural
+syntax selection, surround editing, search, and query execution still target the
+primary selection. Yanking multiple selections copies their text joined by
+newlines; pasting inserts the clipboard contents at each cursor.
 
 Before adding syntax behavior, finish the remaining selection invariants.
 

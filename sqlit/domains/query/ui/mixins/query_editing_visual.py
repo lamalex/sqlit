@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from sqlit.shared.ui.protocols import QueryMixinHost
 
+from .query_editing_multicursor import per_selection
+
 
 class QueryEditingVisualMixin:
     """Visual mode (v) for the query editor — charwise selection."""
 
+    @per_selection
     def action_enter_visual_mode(self: QueryMixinHost) -> None:
         """Enter charwise visual mode (v)."""
         from sqlit.core.vim import VimMode
@@ -34,6 +37,7 @@ class QueryEditingVisualMixin:
             update_chrome=True,
         )
 
+    @per_selection
     def action_exit_visual_mode(self: QueryMixinHost) -> None:
         """Exit visual mode back to normal."""
         cursor = self._visual_cursor or self.query_input.cursor_location
@@ -41,6 +45,7 @@ class QueryEditingVisualMixin:
         self._update_vim_mode_visuals()
         self._update_footer_bindings()
 
+    @per_selection
     def action_switch_to_visual_line_mode(self: QueryMixinHost) -> None:
         """Switch from charwise visual to visual line mode (V)."""
         from sqlit.core.vim import VimMode
@@ -59,6 +64,7 @@ class QueryEditingVisualMixin:
         self._update_vim_mode_visuals()
         self._update_footer_bindings()
 
+    @per_selection
     def action_switch_to_visual_mode(self: QueryMixinHost) -> None:
         """Switch from visual line to charwise visual mode (v)."""
         from sqlit.core.vim import VimMode
@@ -119,6 +125,10 @@ class QueryEditingVisualMixin:
 
     def action_visual_yank(self: QueryMixinHost) -> None:
         """Yank the charwise selection."""
+        if self._query_selection.secondary:
+            self._yank_query_selections()
+            self.action_exit_visual_mode()
+            return
         from sqlit.domains.query.editing import get_selection_text
 
         start, end = self._ordered_selection(self.query_input.selection)
@@ -144,6 +154,12 @@ class QueryEditingVisualMixin:
 
     def action_visual_delete(self: QueryMixinHost) -> None:
         """Delete the charwise selection."""
+        if self._query_selection.secondary:
+            from sqlit.core.vim import VimMode
+
+            self._yank_query_selections()
+            self._edit_query_selections("", mode=VimMode.NORMAL)
+            return
         self._push_undo_state()
         self._delete_selection()
 

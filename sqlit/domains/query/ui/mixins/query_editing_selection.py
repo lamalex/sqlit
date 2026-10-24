@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from sqlit.shared.ui.protocols import QueryMixinHost
 
+from .query_editing_multicursor import per_selection
+
 if TYPE_CHECKING:
     from textual.widgets.text_area import Selection
 
@@ -101,6 +103,8 @@ class QueryEditingSelectionMixin:
         if update_chrome:
             self._update_vim_mode_visuals()
             self._update_footer_bindings()
+        self.query_input._line_cache.clear()
+        self.query_input.refresh()
 
     def _replace_query_selection(
         self: QueryMixinHost,
@@ -126,6 +130,7 @@ class QueryEditingSelectionMixin:
         self._reset_syntax_selection_history()
 
         changes = {
+            "secondary": (),
             "start": current.start,
             "end": current.end,
             "logical_cursor": current.end,
@@ -214,6 +219,7 @@ class QueryEditingSelectionMixin:
             normal_selection_primary=False,
         )
 
+    @per_selection
     def action_collapse_selection(self: QueryMixinHost) -> None:
         """Collapse the current range to its logical head."""
         from sqlit.core.vim import VimMode
@@ -354,6 +360,9 @@ class QueryEditingSelectionMixin:
         def handle_result(char: str | None) -> None:
             if not char:
                 return
+            if self._query_selection.secondary:
+                self._edit_query_selections(lambda selected: "".join("\n" if value == "\n" else char for value in selected), preserve=True)
+                return
 
             from sqlit.domains.query.editing import get_selection_text, operator_delete, paste_text
 
@@ -389,38 +398,40 @@ class QueryEditingSelectionMixin:
         from sqlit.domains.query.ui.screens import TextObjectMenuScreen
 
         def handle_result(obj_char: str | None) -> None:
-            if not obj_char:
-                return
-
-            from sqlit.domains.query.editing import get_text_object
-
-            row, col = self._query_selection.logical_cursor
-            range_obj = get_text_object(obj_char, self.query_input.text, row, col, around)
-            if range_obj is None:
-                return
-
-            if range_obj.start > range_obj.end:
-                cursor = (range_obj.start.row, range_obj.start.col)
-                self._replace_query_selection(
-                    start=cursor,
-                    end=cursor,
-                    logical_cursor=cursor,
-                    normal_selection_primary=False,
-                )
-                return
-
-            ordered = range_obj.ordered()
-            start = (ordered.start.row, ordered.start.col)
-            end = self._position_after((ordered.end.row, ordered.end.col))
-            self._replace_query_selection(
-                start=start,
-                end=end,
-                logical_cursor=(ordered.end.row, ordered.end.col),
-                normal_selection_primary=False,
-            )
+            if obj_char:
+                self._select_query_text_object(obj_char, around=around)
 
         mode = "around" if around else "inner"
         self.push_screen(TextObjectMenuScreen(mode, operator="select"), handle_result)
+
+    @per_selection
+    def _select_query_text_object(self: QueryMixinHost, obj_char: str, *, around: bool) -> None:
+        from sqlit.domains.query.editing import get_text_object
+
+        row, col = self._query_selection.logical_cursor
+        range_obj = get_text_object(obj_char, self.query_input.text, row, col, around)
+        if range_obj is None:
+            return
+
+        if range_obj.start > range_obj.end:
+            cursor = (range_obj.start.row, range_obj.start.col)
+            self._replace_query_selection(
+                start=cursor,
+                end=cursor,
+                logical_cursor=cursor,
+                normal_selection_primary=False,
+            )
+            return
+
+        ordered = range_obj.ordered()
+        start = (ordered.start.row, ordered.start.col)
+        end = self._position_after((ordered.end.row, ordered.end.col))
+        self._replace_query_selection(
+            start=start,
+            end=end,
+            logical_cursor=(ordered.end.row, ordered.end.col),
+            normal_selection_primary=False,
+        )
 
     def _position_after(self: QueryMixinHost, position: tuple[int, int]) -> tuple[int, int]:
         lines = self.query_input.text.split("\n")
@@ -469,7 +480,9 @@ class QueryEditingSelectionMixin:
     def _has_selection(self: QueryMixinHost) -> bool:
         """Check if there's an active text selection."""
         selection = self.query_input.selection
-        return selection.start != selection.end
+        return selection.start != selection.end or any(
+            snapshot.start != snapshot.end for snapshot in self._query_selection.secondary
+        )
 
     def _flash_yank_range(
         self: QueryMixinHost,
@@ -498,6 +511,9 @@ class QueryEditingSelectionMixin:
 
     def _yank_selection(self: QueryMixinHost) -> None:
         """Yank the current selection."""
+        if self._query_selection.secondary:
+            self._yank_query_selections()
+            return
         from sqlit.domains.query.editing import get_selection_text
 
         selection = self.query_input.selection
@@ -525,6 +541,12 @@ class QueryEditingSelectionMixin:
 
     def _change_selection(self: QueryMixinHost, *, push_undo: bool = True) -> None:
         """Change (delete and enter insert mode) the current selection."""
+        if self._query_selection.secondary:
+            from sqlit.core.vim import VimMode
+
+            self._yank_query_selections()
+            self._edit_query_selections("", mode=VimMode.INSERT)
+            return
         from sqlit.domains.query.editing import get_selection_text, operator_delete
 
         selection = self.query_input.selection
@@ -559,6 +581,10 @@ class QueryEditingSelectionMixin:
 
     def _delete_selection(self: QueryMixinHost) -> None:
         """Delete the current selection."""
+        if self._query_selection.secondary:
+            self._yank_query_selections()
+            self._edit_query_selections("")
+            return
         from sqlit.domains.query.editing import get_selection_text, operator_delete
 
         selection = self.query_input.selection

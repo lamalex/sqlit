@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.timer import Timer
 
+from sqlit.domains.query.ui.mixins.query_editing_multicursor import per_selection
 from sqlit.shared.ui.protocols import UINavigationMixinHost
 
 from .ui_leader import UILeaderMixin
@@ -92,6 +93,7 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
             # Results table may not exist yet (Lazy loading)
             pass
 
+    @per_selection
     def action_enter_insert_mode(self: UINavigationMixinHost) -> None:
         """Enter INSERT mode for query editing."""
         from sqlit.core.vim import VimMode
@@ -109,6 +111,7 @@ class UINavigationMixin(UIStatusMixin, UILeaderMixin):
                 update_chrome=True,
             )
 
+    @per_selection
     def action_exit_insert_mode(self: UINavigationMixinHost) -> None:
         """Exit INSERT mode, return to NORMAL mode."""
         from sqlit.core.vim import VimMode
